@@ -14,7 +14,7 @@
   #define SR_LATCH_PIN 3 // Pin connected to ST_CP of 74HC595
   #define SR_CLOCK_PIN 4 // Pin connected to SH_CP of 74HC595
   #define SR_DATA_PIN 1 // Pin connected to DS of 74HC595
-  #define BUTTON_PIN A2 // Analogue Pin (A2)
+  #define BUTTON_PIN A1 // Analogue Pin (A1)
   #define BRIGHTNESS_PIN 0 // Sink pin
   #define puts(x) (void(0)) // Disable prints on the ATTINY
 #endif
@@ -178,7 +178,7 @@ void loop() {
   buttonStatePostLoop();
   
   // Calculate brightness / fading
-  brightness += 2;
+  brightness += 20;
   if (brightness >= 512) {
     brightness = 0;
   }
@@ -188,15 +188,15 @@ void loop() {
   };
   
   if (actualBrightness > 255) actualBrightness = 255; 
-  actualBrightness = actualBrightness * brightnessLevels[currentBrightnessLevel];
-  // analogWrite(BRIGHTNESS_PIN, 255 - actualBrightness);
-  // print(actualBrightness);
+  actualBrightness = 255 * brightnessLevels[currentBrightnessLevel];
+  analogWrite(BRIGHTNESS_PIN, 255-actualBrightness);
+  puts(actualBrightness);
 
   // Calculate animations
   // animatedPatternCurrent->getCurrentState()->printState();
   bool state = animatedPatternCurrent->getCurrentState()->state[0];
-  if (state) analogWrite(BRIGHTNESS_PIN, 255);
-  else analogWrite(BRIGHTNESS_PIN, 0);
+  // if (state) analogWrite(BRIGHTNESS_PIN, 255);
+  // else analogWrite(BRIGHTNESS_PIN, 0);
   animatedPatternCurrent->nextState();
   // puts(state);
 
