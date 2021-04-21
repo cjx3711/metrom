@@ -69,7 +69,6 @@ class AnimatedPattern {
 
   }
   void nextState() {
-    puts("Next State");
     if (currentState->next == NULL) {
       currentState = headState;
     } else {
@@ -199,6 +198,17 @@ void loop() {
   if (state) analogWrite(BRIGHTNESS_PIN, 255);
   else analogWrite(BRIGHTNESS_PIN, 0);
   animatedPatternCurrent->nextState();
-  puts(state);
+  // puts(state);
+
+  uint8_t a = 0;
+  for (uint8_t i = 0; i < 6; i++ ) {
+    a = a | animatedPatternCurrent->getCurrentState()->state[i];
+    a = a << 1;
+  }
+  puts(a);
+  digitalWrite(SR_LATCH_PIN, LOW);
+  shiftOut(SR_DATA_PIN, SR_CLOCK_PIN, LSBFIRST, a);
+  digitalWrite(SR_LATCH_PIN, HIGH);
+
   delay(100);
 }
