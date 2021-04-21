@@ -18,7 +18,41 @@
   #define BRIGHTNESS_PIN 0 // Sink pin
   #define print(x) (void(0)) // Disable prints on the ATTINY
 #endif
+
+#define BTN_MODE 0
+#define BTN_LIGHT 1
+
+// Button states for MODE, BRIGHTNESS
+bool buttonStatesPrev [2] = {false, false};
+bool buttonStates [2] = {false, false};
+
 int brightness = 0;
+float maxBrightness = 1;
+
+bool buttonRelease(uint8_t btn) {
+  return !buttonStates[btn] && buttonStatesPrev[btn];
+}
+
+bool buttonPress(uint8_t btn) {
+  return buttonStates[btn] && !buttonStatesPrev[btn];
+}
+
+
+void buttonStatePreLoop() {
+  uint16_t input = analogRead(BUTTON_PIN);
+  if (input == 0) {
+    buttonStates[BTN_LIGHT] = buttonStates[BTN_MODE] = 0;
+  } else {
+    buttonStates[BTN_MODE] = input > 750;
+    buttonStates[BTN_LIGHT] = !buttonStates[BTN_MODE]
+  }
+}
+
+void buttonStatePostLoop() {
+  for ( int i = 0; i < 2; i++ ) buttonStatesPrev[i] = buttonStates[i];
+}
+
+
 void setup()
 {
   pinMode(SR_LATCH_PIN, OUTPUT);
@@ -31,8 +65,13 @@ void setup()
   #endif
 }
 
-void loop()
-{
+void loop() {
+  buttonStatePreLoop();
+
+  if (buttonRelease(BTN_LIGHT)) {
+    
+  }
+
   brightness++;
   if (brightness > 512) {
     brightness = 0;
@@ -45,4 +84,6 @@ void loop()
   delay(5);
   print(analogRead(BUTTON_PIN));
   // print(brightness);
+
+  buttonStatePostLoop();
 }
