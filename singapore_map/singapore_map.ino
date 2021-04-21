@@ -1,5 +1,5 @@
 // Uncomment this line to set the pins to arduino uno
-#define ARDUINO_DEBUG_MODE
+// #define ARDUINO_DEBUG_MODE
 
 #ifdef ARDUINO_DEBUG_MODE
   // Arduino Uno Pins
@@ -8,7 +8,7 @@
   #define SR_DATA_PIN 6 // Pin connected to DS of 74HC595
   #define BUTTON_PIN A0 // Analogue Pin
   #define BRIGHTNESS_PIN 3 // Sink pin
-  #define print(x) Serial.println(x)
+  #define puts(x) Serial.println(x)
 #else
   // ATTINY Pins
   #define SR_LATCH_PIN 3 // Pin connected to ST_CP of 74HC595
@@ -16,15 +16,115 @@
   #define SR_DATA_PIN 1 // Pin connected to DS of 74HC595
   #define BUTTON_PIN A2 // Analogue Pin (A2)
   #define BRIGHTNESS_PIN 0 // Sink pin
-  #define print(x) (void(0)) // Disable prints on the ATTINY
+  #define puts(x) (void(0)) // Disable prints on the ATTINY
 #endif
 
 #define BTN_MODE 0
 #define BTN_LIGHT 1
 
+class AnimatedState {
+  public:
+  bool * state;
+  uint8_t speed;
+  AnimatedState * next;
+  AnimatedState(bool _state[6], uint8_t _speed) {
+    state = _state;
+    speed = _speed;
+    next = NULL;
+  }
+
+  // void printState() {
+  //   Serial.print(state[0]); Serial.print(' ');
+  //   Serial.print(state[1]); Serial.print(' ');
+  //   Serial.print(state[2]); Serial.print(' ');
+  //   Serial.print(state[3]); Serial.print(' ');
+  //   Serial.print(state[4]); Serial.print(' ');
+  //   Serial.println(state[5]);
+  // }
+};
+
+class AnimatedPattern {
+  private:
+  AnimatedState * headState;
+  AnimatedState * currentState;
+  AnimatedPattern * nextPattern;
+
+  public:
+  AnimatedPattern() {
+    headState = NULL;
+    nextPattern = NULL;
+  }
+  AnimatedPattern(AnimatedPattern * _nextPattern) {
+    headState = NULL;
+    nextPattern = _nextPattern;
+  }
+  void addState(AnimatedState * state) {
+    if (headState == NULL) {
+      headState = state;
+      currentState = state;
+    } else {
+      state->next = headState;
+      headState = state;
+    }
+
+  }
+  void nextState() {
+    puts("Next State");
+    if (currentState->next == NULL) {
+      currentState = headState;
+    } else {
+      currentState = currentState->next;
+    }
+    // currentState->printState();
+  }
+
+  AnimatedState * getCurrentState() {
+    return currentState;
+  }
+
+  void animate() {
+
+  }
+};
+
+AnimatedPattern * animatedPatternHead;
+AnimatedPattern * animatedPatternCurrent;
+
+bool * arrGen(bool a, bool b, bool c, bool d, bool e, bool f) {
+  bool * arr = new bool[6];
+  arr[0] = a; arr[1] = b; arr[2] = c; arr[3] = d; arr[4] = e; arr[5] = f;
+  return arr;
+}
+
+void setupAnimatedPatterns() {
+  AnimatedState * state;
+  animatedPatternCurrent = new AnimatedPattern();
+  animatedPatternCurrent->addState(new AnimatedState(arrGen(0, 0, 0, 0, 0 ,0), 100));
+  animatedPatternCurrent->addState(new AnimatedState(arrGen(1, 0, 0, 0, 0 ,0), 100));
+  animatedPatternCurrent->addState(new AnimatedState(arrGen(0, 1, 0, 0, 0 ,0), 100));
+  animatedPatternCurrent->addState(new AnimatedState(arrGen(0, 0, 1, 0, 0 ,0), 100));
+  animatedPatternCurrent->addState(new AnimatedState(arrGen(0, 0, 0, 1, 0 ,0), 100));
+  animatedPatternCurrent->addState(new AnimatedState(arrGen(0, 0, 0, 0, 1 ,0), 100));
+  animatedPatternCurrent->addState(new AnimatedState(arrGen(0, 0, 0, 0, 0 ,1), 100));
+
+  animatedPatternCurrent = new AnimatedPattern(animatedPatternCurrent);
+  animatedPatternCurrent->addState(new AnimatedState(arrGen(0, 0, 0, 0, 0 ,0), 200));
+  animatedPatternCurrent->addState(new AnimatedState(arrGen(1, 0, 0, 0, 0 ,0), 200));
+  animatedPatternCurrent->addState(new AnimatedState(arrGen(0, 1, 0, 0, 0 ,0), 200));
+  animatedPatternCurrent->addState(new AnimatedState(arrGen(0, 0, 1, 0, 0 ,0), 200));
+  animatedPatternCurrent->addState(new AnimatedState(arrGen(0, 0, 0, 1, 0 ,0), 200));
+  animatedPatternCurrent->addState(new AnimatedState(arrGen(0, 0, 0, 0, 1 ,0), 200));
+  animatedPatternCurrent->addState(new AnimatedState(arrGen(0, 0, 0, 0, 0 ,1), 200));
+
+  animatedPatternHead = animatedPatternCurrent;
+}
+
 // Button states for MODE, BRIGHTNESS
 bool buttonStatesPrev [2] = {false, false};
 bool buttonStates [2] = {false, false};
+
+float brightnessLevels[8] = { 1.0f, 0.7f, 0.5f, 0.35f, 0.2f, 0.1f, 0.05f, 0.025f};
+int currentBrightnessLevel = 0;
 
 int brightness = 0;
 float maxBrightness = 1;
@@ -40,11 +140,11 @@ bool buttonPress(uint8_t btn) {
 
 void buttonStatePreLoop() {
   uint16_t input = analogRead(BUTTON_PIN);
-  if (input == 0) {
+  if (input < 10) {
     buttonStates[BTN_LIGHT] = buttonStates[BTN_MODE] = 0;
   } else {
     buttonStates[BTN_MODE] = input > 750;
-    buttonStates[BTN_LIGHT] = !buttonStates[BTN_MODE]
+    buttonStates[BTN_LIGHT] = !buttonStates[BTN_MODE];
   }
 }
 
@@ -63,27 +163,42 @@ void setup()
   #ifdef ARDUINO_DEBUG_MODE
     Serial.begin(9600);
   #endif
+
+  setupAnimatedPatterns();
 }
 
 void loop() {
+  // Calculate buttons
   buttonStatePreLoop();
 
-  if (buttonRelease(BTN_LIGHT)) {
-    
-  }
-
-  brightness++;
-  if (brightness > 512) {
-    brightness = 0;
-  }
-  int actualBrightness = brightness;
-  if (brightness > 256) {
-    actualBrightness = 256 - (brightness - 255);
-  }
-  analogWrite(BRIGHTNESS_PIN, actualBrightness);
-  delay(5);
-  print(analogRead(BUTTON_PIN));
-  // print(brightness);
+  if (buttonRelease(BTN_LIGHT)) 
+    currentBrightnessLevel ++;
+  if (currentBrightnessLevel >= 8)
+    currentBrightnessLevel = 0;
 
   buttonStatePostLoop();
+  
+  // Calculate brightness / fading
+  brightness += 2;
+  if (brightness >= 512) {
+    brightness = 0;
+  }
+  uint16_t actualBrightness = brightness;
+  if (brightness > 255) {
+    actualBrightness = 512 - brightness;
+  };
+  
+  if (actualBrightness > 255) actualBrightness = 255; 
+  actualBrightness = actualBrightness * brightnessLevels[currentBrightnessLevel];
+  // analogWrite(BRIGHTNESS_PIN, 255 - actualBrightness);
+  // print(actualBrightness);
+
+  // Calculate animations
+  // animatedPatternCurrent->getCurrentState()->printState();
+  bool state = animatedPatternCurrent->getCurrentState()->state[0];
+  if (state) analogWrite(BRIGHTNESS_PIN, 255);
+  else analogWrite(BRIGHTNESS_PIN, 0);
+  animatedPatternCurrent->nextState();
+  puts(state);
+  delay(100);
 }
