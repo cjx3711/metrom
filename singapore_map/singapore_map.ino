@@ -1,5 +1,5 @@
 // Uncomment this line to set the pins to arduino uno
-// #define ARDUINO_DEBUG_MODE
+#define ARDUINO_DEBUG_MODE
 
 #ifdef ARDUINO_DEBUG_MODE
   // Arduino Uno Pins
@@ -8,7 +8,8 @@
   #define SR_DATA_PIN 6 // Pin connected to DS of 74HC595
   #define BUTTON_PIN A0 // Analogue Pin
   #define BRIGHTNESS_PIN 3 // Sink pin
-  #define puts(x) Serial.println(x)
+  #define puts(x) Serial.print(x)
+  #define putsln(x) Serial.println(x)
 #else
   // ATTINY Pins
   #define SR_LATCH_PIN 3 // Pin connected to ST_CP of 74HC595
@@ -33,14 +34,14 @@ class AnimatedState {
     next = NULL;
   }
 
-  // void printState() {
-  //   Serial.print(state[0]); Serial.print(' ');
-  //   Serial.print(state[1]); Serial.print(' ');
-  //   Serial.print(state[2]); Serial.print(' ');
-  //   Serial.print(state[3]); Serial.print(' ');
-  //   Serial.print(state[4]); Serial.print(' ');
-  //   Serial.println(state[5]);
-  // }
+  void printState() {
+    puts(state[0]); puts(' ');
+    puts(state[1]); puts(' ');
+    puts(state[2]); puts(' ');
+    puts(state[3]); puts(' ');
+    puts(state[4]); puts(' ');
+    putsln(state[5]);
+  }
 };
 
 class AnimatedPattern {
@@ -74,7 +75,7 @@ class AnimatedPattern {
     } else {
       currentState = currentState->next;
     }
-    // currentState->printState();
+    currentState->printState();
   }
 
   AnimatedState * getCurrentState() {
@@ -190,7 +191,7 @@ void loop() {
   if (actualBrightness > 255) actualBrightness = 255; 
   actualBrightness = 255 * brightnessLevels[currentBrightnessLevel];
   analogWrite(BRIGHTNESS_PIN, 255-actualBrightness);
-  puts(actualBrightness);
+  // puts(actualBrightness);
 
   // Calculate animations
   // animatedPatternCurrent->getCurrentState()->printState();
@@ -202,13 +203,13 @@ void loop() {
 
   uint8_t a = 0;
   for (uint8_t i = 0; i < 6; i++ ) {
-    a = a | animatedPatternCurrent->getCurrentState()->state[i];
     a = a << 1;
+    a = a | animatedPatternCurrent->getCurrentState()->state[i];
   }
-  puts(a);
+  putsln(a);
   digitalWrite(SR_LATCH_PIN, LOW);
   shiftOut(SR_DATA_PIN, SR_CLOCK_PIN, LSBFIRST, a);
   digitalWrite(SR_LATCH_PIN, HIGH);
 
-  delay(100);
+  delay(500);
 }
