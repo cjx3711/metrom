@@ -94,13 +94,18 @@ AnimatedPattern * animatedPatternCurrent;
 
 
 uint8_t pattern1[] = {0b00000001, 0b00000010, 0b00000100, 0b00001000, 0b00010000, 0b00100000};
-uint8_t pattern2[] = {0b00000000,0b00100000, 0b00110000, 0b00111000, 0b00111100, 0b00111110, 0b00111111};
+uint8_t pattern2[] = {0b00000001, 0b00000011, 0b00000111, 0b00001111, 0b00011111, 0b00111111};
+uint8_t pattern3[] = {0b00111111};
+
 
 void setupAnimatedPatterns() {
   // 48 * 3 + 7 * 3 * 62 = 1446
   animatedPatternCurrent = new AnimatedPattern(pattern1, 6, 20, 10, 0);
-  animatedPatternCurrent = new AnimatedPattern(pattern2, 7, 5, 50, 0, animatedPatternCurrent);
-  animatedPatternCurrent = new AnimatedPattern(pattern2, 7, 50, 5, 0, animatedPatternCurrent);
+  animatedPatternCurrent = new AnimatedPattern(pattern1, 6, 200, 20, 0, animatedPatternCurrent);
+  animatedPatternCurrent = new AnimatedPattern(pattern2, 6, 5, 100, 0, animatedPatternCurrent);
+  animatedPatternCurrent = new AnimatedPattern(pattern2, 6, 200, 20, 0, animatedPatternCurrent);
+  animatedPatternCurrent = new AnimatedPattern(pattern3, 1, 200, 0, 0, animatedPatternCurrent);
+  animatedPatternCurrent = new AnimatedPattern(pattern3, 1, 0, 200, 0, animatedPatternCurrent);
 
   animatedPatternHead = animatedPatternCurrent;
 }
