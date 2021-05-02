@@ -45,6 +45,9 @@ class AnimatedState {
   // Each state starts on the OFF state for ticksOff time,
   // then it takes ticksAnimate ticks to turn on,
   // then it holds the on state for ticksOn
+
+  // (16 + 6) + 8 + 8 + 8 + 16
+  // 62 bytes
   public:
   bool * state;
   uint8_t ticksOn;
@@ -70,6 +73,7 @@ class AnimatedState {
 };
 
 class AnimatedPattern {
+  // 16 + 16 + 16 = 48
   private:
   AnimatedState * headState;
   AnimatedState * currentState;
@@ -124,6 +128,7 @@ bool * arrGen(bool a, bool b, bool c, bool d, bool e, bool f) {
 }
 
 void setupAnimatedPatterns() {
+  // 48 * 3 + 7 * 3 * 62 = 1446
   AnimatedState * state;
   animatedPatternCurrent = new AnimatedPattern();
   animatedPatternCurrent->addState(new AnimatedState(arrGen(1, 0, 0, 0, 0 ,0), 20, 10, 0));
