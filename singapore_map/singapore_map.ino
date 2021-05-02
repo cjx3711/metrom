@@ -73,9 +73,10 @@ class AnimatedPattern {
   private:
   AnimatedState * headState;
   AnimatedState * currentState;
-  AnimatedPattern * nextPattern;
 
   public:
+  AnimatedPattern * nextPattern;
+
   AnimatedPattern() {
     headState = NULL;
     nextPattern = NULL;
@@ -96,6 +97,10 @@ class AnimatedPattern {
     }
 
   }
+  void resetState() {
+    currentState = headState;
+  }
+
   void nextState() {
     if (currentState->next == NULL) {
       currentState = headState;
@@ -106,10 +111,6 @@ class AnimatedPattern {
 
   AnimatedState * getCurrentState() {
     return currentState;
-  }
-
-  void animate() {
-
   }
 };
 
@@ -151,6 +152,17 @@ void setupAnimatedPatterns() {
   animatedPatternCurrent->addState(new AnimatedState(arrGen(1, 1, 1, 1, 1 ,1), 5, 50, 0));
 
   animatedPatternHead = animatedPatternCurrent;
+}
+
+void nextPattern() {
+  if (animatedPatternCurrent->nextPattern) {
+    animatedPatternCurrent = animatedPatternCurrent->nextPattern;
+  } else {
+    animatedPatternCurrent = animatedPatternHead;
+  }
+  lightingState = STATE_HOLD_OFF;
+  stateTicksLeft = stateTicksTotal = animatedPatternCurrent->getCurrentState()->ticksOff;
+  animatedPatternCurrent->resetState();
 }
 
 // Button states for MODE, BRIGHTNESS
@@ -200,8 +212,7 @@ void setup()
 
   setupAnimatedPatterns();
 
-  lightingState = STATE_HOLD_OFF;
-  stateTicksLeft = stateTicksTotal = animatedPatternCurrent->getCurrentState()->ticksOff;
+  nextPattern();
 }
 
 void loop() {
@@ -213,12 +224,14 @@ void loop() {
   if (currentBrightnessLevel >= 8)
     currentBrightnessLevel = 0;
 
+  if (buttonRelease(BTN_MODE))
+    nextPattern();
+
   buttonStatePostLoop();
 
   // Process lighting state
   // If this state is 0 ticks, it will skip the rest of the loop
   
-
   float percentage;
   switch(lightingState) {
     case STATE_HOLD_OFF:
