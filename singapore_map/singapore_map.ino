@@ -3,8 +3,8 @@
 
 #ifdef ARDUINO_DEBUG_MODE
   // Arduino Uno Pins
-  #define SR_LATCH_PIN 4 // Pin connected to ST_CP of 74HC595
-  #define SR_CLOCK_PIN 5 // Pin connected to SH_CP of 74HC595
+  #define SR_LATCH_PIN 5 // Pin connected to ST_CP of 74HC595
+  #define SR_CLOCK_PIN 4 // Pin connected to SH_CP of 74HC595
   #define SR_DATA_PIN 6 // Pin connected to DS of 74HC595
   #define BUTTON_PIN A0 // Analogue Pin
   #define BRIGHTNESS_PIN 3 // Sink pin
@@ -18,6 +18,7 @@
   #define BUTTON_PIN A1 // Analogue Pin (A1)
   #define BRIGHTNESS_PIN 0 // Sink pin
   #define puts(x) (void(0)) // Disable prints on the ATTINY
+  #define putsln(x) (void(0)) // Disable prints on the ATTINY
 #endif
 
 #define BTN_MODE 0
@@ -30,20 +31,15 @@
 
 
 
-uint8_t lightingState = STATE_HOLD_OFF;
-uint8_t stateTicksTotal = 10;
-uint8_t stateTicksLeft = 10;
+uint8_t lightingState;
+uint8_t stateTicksTotal;
+uint8_t stateTicksLeft;
 
 // The animation will work in 4 states
 // STATE_HOLD_OFF
 // STATE_TRANSITION_ON
 // STATE_HOLD_ON
 // STATE_TRANSITION_OFF
-
-
-// State processing
-
-
 
 class AnimatedState {
   // Each state starts on the OFF state for ticksOff time,
@@ -89,12 +85,14 @@ class AnimatedPattern {
     nextPattern = _nextPattern;
   }
   void addState(AnimatedState * state) {
+    // Add to the tail by looping to the end
     if (headState == NULL) {
       headState = state;
       currentState = state;
     } else {
-      state->next = headState;
-      headState = state;
+      AnimatedState * pointer = headState;
+      while (pointer->next) pointer = pointer->next;
+      pointer->next = state;
     }
 
   }
@@ -127,22 +125,30 @@ bool * arrGen(bool a, bool b, bool c, bool d, bool e, bool f) {
 void setupAnimatedPatterns() {
   AnimatedState * state;
   animatedPatternCurrent = new AnimatedPattern();
-  animatedPatternCurrent->addState(new AnimatedState(arrGen(0, 0, 0, 0, 0 ,0), 10, 5, 0));
-  animatedPatternCurrent->addState(new AnimatedState(arrGen(1, 0, 0, 0, 0 ,0), 10, 5, 0));
-  animatedPatternCurrent->addState(new AnimatedState(arrGen(0, 1, 0, 0, 0 ,0), 10, 5, 0));
-  animatedPatternCurrent->addState(new AnimatedState(arrGen(0, 0, 1, 0, 0 ,0), 10, 5, 0));
-  animatedPatternCurrent->addState(new AnimatedState(arrGen(0, 0, 0, 1, 0 ,0), 10, 5, 0));
-  animatedPatternCurrent->addState(new AnimatedState(arrGen(0, 0, 0, 0, 1 ,0), 10, 5, 0));
-  animatedPatternCurrent->addState(new AnimatedState(arrGen(0, 0, 0, 0, 0 ,1), 10, 5, 0));
+  animatedPatternCurrent->addState(new AnimatedState(arrGen(1, 0, 0, 0, 0 ,0), 20, 10, 0));
+  animatedPatternCurrent->addState(new AnimatedState(arrGen(0, 1, 0, 0, 0 ,0), 20, 10, 0));
+  animatedPatternCurrent->addState(new AnimatedState(arrGen(0, 0, 1, 0, 0 ,0), 20, 10, 0));
+  animatedPatternCurrent->addState(new AnimatedState(arrGen(0, 0, 0, 1, 0 ,0), 20, 10, 0));
+  animatedPatternCurrent->addState(new AnimatedState(arrGen(0, 0, 0, 0, 1 ,0), 20, 10, 0));
+  animatedPatternCurrent->addState(new AnimatedState(arrGen(0, 0, 0, 0, 0 ,1), 20, 10, 0));
 
   animatedPatternCurrent = new AnimatedPattern(animatedPatternCurrent);
-  animatedPatternCurrent->addState(new AnimatedState(arrGen(0, 0, 0, 0, 0 ,0), 10, 5, 0));
-  animatedPatternCurrent->addState(new AnimatedState(arrGen(1, 0, 0, 0, 0 ,0), 10, 5, 0));
-  animatedPatternCurrent->addState(new AnimatedState(arrGen(0, 1, 0, 0, 0 ,0), 10, 5, 0));
-  animatedPatternCurrent->addState(new AnimatedState(arrGen(0, 0, 1, 0, 0 ,0), 10, 5, 0));
-  animatedPatternCurrent->addState(new AnimatedState(arrGen(0, 0, 0, 1, 0 ,0), 10, 5, 0));
-  animatedPatternCurrent->addState(new AnimatedState(arrGen(0, 0, 0, 0, 1 ,0), 10, 5, 0));
-  animatedPatternCurrent->addState(new AnimatedState(arrGen(0, 0, 0, 0, 0 ,1), 10, 5, 0));
+  animatedPatternCurrent->addState(new AnimatedState(arrGen(0, 0, 0, 0, 0 ,0), 50, 5, 0));
+  animatedPatternCurrent->addState(new AnimatedState(arrGen(1, 0, 0, 0, 0 ,0), 50, 5, 0));
+  animatedPatternCurrent->addState(new AnimatedState(arrGen(1, 1, 0, 0, 0 ,0), 50, 5, 0));
+  animatedPatternCurrent->addState(new AnimatedState(arrGen(1, 1, 1, 0, 0 ,0), 50, 5, 0));
+  animatedPatternCurrent->addState(new AnimatedState(arrGen(1, 1, 1, 1, 0 ,0), 50, 5, 0));
+  animatedPatternCurrent->addState(new AnimatedState(arrGen(1, 1, 1, 1, 1 ,0), 50, 5, 0));
+  animatedPatternCurrent->addState(new AnimatedState(arrGen(1, 1, 1, 1, 1 ,1), 50, 5, 0));
+
+  animatedPatternCurrent = new AnimatedPattern(animatedPatternCurrent);
+  animatedPatternCurrent->addState(new AnimatedState(arrGen(0, 0, 0, 0, 0 ,0), 5, 50, 0));
+  animatedPatternCurrent->addState(new AnimatedState(arrGen(1, 0, 0, 0, 0 ,0), 5, 50, 0));
+  animatedPatternCurrent->addState(new AnimatedState(arrGen(1, 1, 0, 0, 0 ,0), 5, 50, 0));
+  animatedPatternCurrent->addState(new AnimatedState(arrGen(1, 1, 1, 0, 0 ,0), 5, 50, 0));
+  animatedPatternCurrent->addState(new AnimatedState(arrGen(1, 1, 1, 1, 0 ,0), 5, 50, 0));
+  animatedPatternCurrent->addState(new AnimatedState(arrGen(1, 1, 1, 1, 1 ,0), 5, 50, 0));
+  animatedPatternCurrent->addState(new AnimatedState(arrGen(1, 1, 1, 1, 1 ,1), 5, 50, 0));
 
   animatedPatternHead = animatedPatternCurrent;
 }
@@ -193,6 +199,9 @@ void setup()
   #endif
 
   setupAnimatedPatterns();
+
+  lightingState = STATE_HOLD_OFF;
+  stateTicksLeft = stateTicksTotal = animatedPatternCurrent->getCurrentState()->ticksOff;
 }
 
 void loop() {
@@ -205,7 +214,11 @@ void loop() {
     currentBrightnessLevel = 0;
 
   buttonStatePostLoop();
+
+  // Process lighting state
+  // If this state is 0 ticks, it will skip the rest of the loop
   
+
   float percentage;
   switch(lightingState) {
     case STATE_HOLD_OFF:
@@ -224,9 +237,9 @@ void loop() {
       break;
   }
   // State changing
-  stateTicksLeft--;
+  bool skipLoop = false;
+  if (stateTicksTotal == 0) skipLoop = true;
   if (stateTicksLeft == 0) {
-    
     switch(lightingState) {
       case STATE_HOLD_OFF:
         lightingState = STATE_TRANSITION_ON;
@@ -247,27 +260,28 @@ void loop() {
         break;
     }
     stateTicksLeft = stateTicksTotal;
+    if (skipLoop) return; // If the previous state had 0 ticks, we will not update the brightness or lighting.
+  } else {
+    stateTicksLeft--;
   }
-
-  puts("Brightness "); putsln(brightness);
+  // Set pin brightness
+  // puts("Brightness "); putsln(brightness);
   brightness = brightness * brightnessLevels[currentBrightnessLevel];
   analogWrite(BRIGHTNESS_PIN, 255 - brightness); // Invert the brightness value
-  // puts(actualBrightness);
 
-  // Calculate animations
-
+  // Set the image state
   uint8_t a = 0;
-  for (uint8_t i = 0; i < 6; i++ ) {
+  for (uint8_t i = 6; i > 0; i-- ) {
     a = a << 1;
-    a = a | animatedPatternCurrent->getCurrentState()->state[i];
+    a = a | animatedPatternCurrent->getCurrentState()->state[i-1];
   }
-  // animatedPatternCurrent->getCurrentState()->printState();
-  puts("State Ticks "); putsln(stateTicksLeft);
-  // puts("Anim State "); putsln(lightingState);
-
   digitalWrite(SR_LATCH_PIN, LOW);
-  shiftOut(SR_DATA_PIN, SR_CLOCK_PIN, LSBFIRST, a);
+  shiftOut(SR_DATA_PIN, SR_CLOCK_PIN, MSBFIRST, a);
   digitalWrite(SR_LATCH_PIN, HIGH);
 
-  delay(500);
+  animatedPatternCurrent->getCurrentState()->printState();
+  // puts("State Ticks "); putsln(stateTicksLeft);
+  // puts("Anim State "); putsln(lightingState);
+
+  delay(10);
 }
