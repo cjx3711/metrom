@@ -92,7 +92,13 @@ class AnimatedPattern {
 AnimatedPattern * animatedPatternHead;
 AnimatedPattern * animatedPatternCurrent;
 
-
+// Patterns are defined as integers, but only the first 6 bits from the right are used.
+// 1 represents on an state, while 0 represents an off state.
+// The bits from right to left control the following lines respectively
+// NSL, EWL, NEL, CCL, DTL, TEL.
+// For example:
+// 0b00000011
+// NSL and EWL are on, while the rest are not.
 uint8_t pattern1[] = {0b00000001, 0b00000010, 0b00000100, 0b00001000, 0b00010000, 0b00100000};
 uint8_t pattern2[] = {0b00000001, 0b00000011, 0b00000111, 0b00001111, 0b00011111, 0b00111111};
 uint8_t pattern3[] = {0b00111111};
