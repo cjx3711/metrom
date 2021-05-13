@@ -1,3 +1,10 @@
+// These can be modified to change the program behaviour
+#define MAX_LENGTH_MULTIPLIER 10
+#define LONG_PRESS_TICKS 40
+#define PREVIEW_OFF 2
+#define PREVIEW_TRANSITION 1
+#define PREVIEW_ON 9
+
 // Uncomment this line to set the pins to arduino uno
 // #define ARDUINO_DEBUG_MODE
 
@@ -21,6 +28,7 @@
   // #define putsln(x) (void(0)) // Disable prints on the ATTINY
 #endif
 
+// These should not be touched and are required for the program to run
 #define BTN_MODE 0
 #define BTN_LIGHT 1
 
@@ -29,11 +37,14 @@
 #define STATE_HOLD_ON 3
 #define STATE_TRANSITION_OFF 4
 
+#define BUTTON_OFF_THRESHOLD 10
+#define SECOND_BUTTON_THRESHOLD 750
+
 
 
 uint8_t lightingState;
-uint8_t stateTicksTotal;
-uint8_t stateTicksLeft;
+uint16_t stateTicksTotal;
+uint16_t stateTicksLeft;
 
 uint8_t currentPatternState;
 
@@ -45,8 +56,9 @@ bool firstRun = true;
 
 float brightnessLevels[8] = { 1.0f, 0.7f, 0.5f, 0.35f, 0.2f, 0.1f, 0.05f, 0.025f};
 int currentBrightnessLevel = 0;
-
-int brightness = 0;
+int lengthMultiplier = 1;
+// Used for detecting the long press
+uint8_t pressTicks = 0;
 
 // The animation will work in 4 states
 // STATE_HOLD_OFF
@@ -106,6 +118,7 @@ class AnimatedPattern {
 AnimatedPattern * animatedPatternHead;
 AnimatedPattern * animatedPatternCurrent;
 
+
 // Patterns are defined as integers, but only the first 6 bits from the right are used.
 // 1 represents on an state, while 0 represents an off state.
 // The bits from right to left control the following lines respectively
@@ -123,8 +136,8 @@ void setupAnimatedPatterns() {
   animatedPatternCurrent = new AnimatedPattern(pattern1, 6, 40, 10, 0);
   animatedPatternCurrent = new AnimatedPattern(pattern2, 6, 40, 10, 0, animatedPatternCurrent);
   animatedPatternCurrent = new AnimatedPattern(pattern3, 10, 40, 10, 0, animatedPatternCurrent);
-  animatedPatternCurrent = new AnimatedPattern(pattern4, 1, 200, 0, 0, animatedPatternCurrent);
-  animatedPatternCurrent = new AnimatedPattern(pattern4, 1, 20, 200, 20, animatedPatternCurrent);
+  animatedPatternCurrent = new AnimatedPattern(pattern4, 1, 100, 0, 0, animatedPatternCurrent);
+  animatedPatternCurrent = new AnimatedPattern(pattern4, 1, 10, 100, 10, animatedPatternCurrent);
 
   animatedPatternHead = animatedPatternCurrent;
 }
@@ -147,16 +160,19 @@ bool buttonRelease(uint8_t btn) {
 
 void buttonStatePreLoop() {
   uint16_t input = analogRead(BUTTON_PIN);
-  if (input < 10) { //
+  pressTicks++;
+  if (input < BUTTON_OFF_THRESHOLD) { // Button is not being pressed
     buttonStates[BTN_LIGHT] = buttonStates[BTN_MODE] = 0;
   } else {
-    buttonStates[BTN_MODE] = input > 750;
+    buttonStates[BTN_MODE] = input > SECOND_BUTTON_THRESHOLD;
     buttonStates[BTN_LIGHT] = !buttonStates[BTN_MODE];
   }
 }
 
 void buttonStatePostLoop() {
   for ( int i = 0; i < 2; i++ ) buttonStatesPrev[i] = buttonStates[i];
+  if (!buttonStates[BTN_LIGHT] && !buttonStates[BTN_MODE])
+    pressTicks = 0;
 }
 
 
@@ -178,19 +194,31 @@ void loop() {
   // Calculate buttons
   buttonStatePreLoop();
 
-  if (buttonRelease(BTN_LIGHT)) 
-    currentBrightnessLevel ++;
-  if (currentBrightnessLevel >= 8)
-    currentBrightnessLevel = 0;
+  if (buttonRelease(BTN_LIGHT)) {
+    if (pressTicks >= LONG_PRESS_TICKS) {
+      currentBrightnessLevel++;
+      if (currentBrightnessLevel >= 8)
+        currentBrightnessLevel = 0;
+    } else {
+      stateTicksLeft = 1;
+      lengthMultiplier++;
+      if (lengthMultiplier > MAX_LENGTH_MULTIPLIER) lengthMultiplier = 1;
+    }
+  }
 
-  if (buttonRelease(BTN_MODE))
-    nextPattern();
+  if (buttonRelease(BTN_MODE)) {
+    if (pressTicks < LONG_PRESS_TICKS) {
+      nextPattern();
+    }
+    // Pressing and holding, or just changing patterns will reset the length multiplier
+    lengthMultiplier = 1;
+  }
 
   buttonStatePostLoop();
 
   // Process lighting state
   // If this state is 0 ticks, it will skip the rest of the loop
-  
+  int brightness;
   float percentage;
   switch(lightingState) {
     case STATE_HOLD_OFF:
@@ -215,19 +243,19 @@ void loop() {
     switch(lightingState) {
       case STATE_HOLD_OFF:
         lightingState = STATE_TRANSITION_ON;
-        stateTicksTotal = firstRun ? 3 : animatedPatternCurrent->getTicksAnimate();
+        stateTicksTotal = firstRun ? PREVIEW_OFF : animatedPatternCurrent->getTicksAnimate() * lengthMultiplier;
         break;
       case STATE_TRANSITION_ON:
         lightingState = STATE_HOLD_ON;
-        stateTicksTotal = firstRun ? 1 : animatedPatternCurrent->getTicksOn();
+        stateTicksTotal = firstRun ? PREVIEW_TRANSITION : animatedPatternCurrent->getTicksOn() * lengthMultiplier;
         break;
       case STATE_HOLD_ON:
         lightingState = STATE_TRANSITION_OFF;
-        stateTicksTotal = firstRun ? 8 : animatedPatternCurrent->getTicksAnimate();
+        stateTicksTotal = firstRun ? PREVIEW_ON : animatedPatternCurrent->getTicksAnimate() * lengthMultiplier;
         break;
       case STATE_TRANSITION_OFF:
         lightingState = STATE_HOLD_OFF;
-        stateTicksTotal = firstRun ? 1 : animatedPatternCurrent->getTicksOff();
+        stateTicksTotal = firstRun ? PREVIEW_TRANSITION : animatedPatternCurrent->getTicksOff() * lengthMultiplier;
         animatedPatternCurrent->nextState();
         break;
     }
@@ -257,6 +285,6 @@ void loop() {
 
   // For testing on ATTINY without serial
   // analogWrite(BRIGHTNESS_PIN, (millis() / 10) % 255);
-
+  
   delay(10);
 }
