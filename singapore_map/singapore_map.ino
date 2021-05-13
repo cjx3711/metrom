@@ -37,6 +37,17 @@ uint8_t stateTicksLeft;
 
 uint8_t currentPatternState;
 
+
+// Button states for MODE, BRIGHTNESS
+bool buttonStatesPrev [2] = {false, false};
+bool buttonStates [2] = {false, false};
+bool firstRun = true;
+
+float brightnessLevels[8] = { 1.0f, 0.7f, 0.5f, 0.35f, 0.2f, 0.1f, 0.05f, 0.025f};
+int currentBrightnessLevel = 0;
+
+int brightness = 0;
+
 // The animation will work in 4 states
 // STATE_HOLD_OFF
 // STATE_TRANSITION_ON
@@ -73,7 +84,10 @@ class AnimatedPattern {
   }
   void nextState() {
     currentPatternState++;
-    if (currentPatternState == totalStates) currentPatternState = 0;
+    if (currentPatternState == totalStates) {
+      currentPatternState = 0;
+      firstRun = false;
+    }
   }
   uint8_t getState() {
     return states[currentPatternState];
@@ -101,17 +115,16 @@ AnimatedPattern * animatedPatternCurrent;
 // NSL and EWL are on, while the rest are not.
 uint8_t pattern1[] = {0b00000001, 0b00000010, 0b00000100, 0b00001000, 0b00010000, 0b00100000};
 uint8_t pattern2[] = {0b00000001, 0b00000011, 0b00000111, 0b00001111, 0b00011111, 0b00111111};
-uint8_t pattern3[] = {0b00111111};
+uint8_t pattern3[] = {0b00000001, 0b00000011, 0b00000111, 0b00001111, 0b00011111, 0b00111111, 0b00011111, 0b00001111, 0b00000111, 0b00000011};
+uint8_t pattern4[] = {0b00111111};
 
 
 void setupAnimatedPatterns() {
-  // 48 * 3 + 7 * 3 * 62 = 1446
-  animatedPatternCurrent = new AnimatedPattern(pattern1, 6, 20, 10, 0);
-  animatedPatternCurrent = new AnimatedPattern(pattern1, 6, 200, 20, 0, animatedPatternCurrent);
-  animatedPatternCurrent = new AnimatedPattern(pattern2, 6, 5, 100, 0, animatedPatternCurrent);
-  animatedPatternCurrent = new AnimatedPattern(pattern2, 6, 200, 20, 0, animatedPatternCurrent);
-  animatedPatternCurrent = new AnimatedPattern(pattern3, 1, 200, 0, 0, animatedPatternCurrent);
-  animatedPatternCurrent = new AnimatedPattern(pattern3, 1, 0, 200, 0, animatedPatternCurrent);
+  animatedPatternCurrent = new AnimatedPattern(pattern1, 6, 40, 10, 0);
+  animatedPatternCurrent = new AnimatedPattern(pattern2, 6, 40, 10, 0, animatedPatternCurrent);
+  animatedPatternCurrent = new AnimatedPattern(pattern3, 10, 40, 10, 0, animatedPatternCurrent);
+  animatedPatternCurrent = new AnimatedPattern(pattern4, 1, 200, 0, 0, animatedPatternCurrent);
+  animatedPatternCurrent = new AnimatedPattern(pattern4, 1, 20, 200, 20, animatedPatternCurrent);
 
   animatedPatternHead = animatedPatternCurrent;
 }
@@ -124,18 +137,9 @@ void nextPattern() {
   }
   lightingState = STATE_HOLD_OFF;
   currentPatternState = 0;
+  firstRun = true;
   stateTicksLeft = stateTicksTotal = animatedPatternCurrent->getTicksOff();
 }
-
-// Button states for MODE, BRIGHTNESS
-bool buttonStatesPrev [2] = {false, false};
-bool buttonStates [2] = {false, false};
-
-float brightnessLevels[8] = { 1.0f, 0.7f, 0.5f, 0.35f, 0.2f, 0.1f, 0.05f, 0.025f};
-int currentBrightnessLevel = 0;
-
-int brightness = 0;
-float maxBrightness = 1;
 
 bool buttonRelease(uint8_t btn) {
   return !buttonStates[btn] && buttonStatesPrev[btn];
@@ -143,7 +147,7 @@ bool buttonRelease(uint8_t btn) {
 
 void buttonStatePreLoop() {
   uint16_t input = analogRead(BUTTON_PIN);
-  if (input < 10) {
+  if (input < 10) { //
     buttonStates[BTN_LIGHT] = buttonStates[BTN_MODE] = 0;
   } else {
     buttonStates[BTN_MODE] = input > 750;
@@ -211,19 +215,19 @@ void loop() {
     switch(lightingState) {
       case STATE_HOLD_OFF:
         lightingState = STATE_TRANSITION_ON;
-        stateTicksTotal = animatedPatternCurrent->getTicksAnimate();
+        stateTicksTotal = firstRun ? 3 : animatedPatternCurrent->getTicksAnimate();
         break;
       case STATE_TRANSITION_ON:
         lightingState = STATE_HOLD_ON;
-        stateTicksTotal = animatedPatternCurrent->getTicksOn();
+        stateTicksTotal = firstRun ? 1 : animatedPatternCurrent->getTicksOn();
         break;
       case STATE_HOLD_ON:
         lightingState = STATE_TRANSITION_OFF;
-        stateTicksTotal = animatedPatternCurrent->getTicksAnimate();
+        stateTicksTotal = firstRun ? 8 : animatedPatternCurrent->getTicksAnimate();
         break;
       case STATE_TRANSITION_OFF:
         lightingState = STATE_HOLD_OFF;
-        stateTicksTotal = animatedPatternCurrent->getTicksOff();
+        stateTicksTotal = firstRun ? 1 : animatedPatternCurrent->getTicksOff();
         animatedPatternCurrent->nextState();
         break;
     }
