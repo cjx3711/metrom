@@ -29,16 +29,22 @@
 #endif
 
 // These should not be touched and are required for the program to run
-#define BTN_MODE 0
+#define BTN_SPEED 0
 #define BTN_LIGHT 1
+#define BTN_MODE 2
 
 #define STATE_HOLD_OFF 1
 #define STATE_TRANSITION_ON 2
 #define STATE_HOLD_ON 3
 #define STATE_TRANSITION_OFF 4
 
+// When off, expect pin to be 0
+// When first button pressed, expect pin to be 1023
+// When second button pressed, expect pin to be 512 (507 - 508 actual)
+// When third button is pressed, expect pin to be 341 (338 - 340 actual)
 #define BUTTON_OFF_THRESHOLD 10
 #define SECOND_BUTTON_THRESHOLD 750
+#define THIRD_BUTTON_THRESHOLD 425
 
 
 
@@ -49,16 +55,15 @@ uint16_t stateTicksLeft;
 uint8_t currentPatternState;
 
 
-// Button states for MODE, BRIGHTNESS
-bool buttonStatesPrev [2] = {false, false};
-bool buttonStates [2] = {false, false};
+// Button states for SPEED, BRIGHTNESS, MODE
+bool buttonStatesPrev [3] = {false, false, false};
+bool buttonStates [3] = {false, false, false};
 bool firstRun = true;
 
 float brightnessLevels[8] = { 1.0f, 0.7f, 0.5f, 0.35f, 0.2f, 0.1f, 0.05f, 0.025f};
 int currentBrightnessLevel = 0;
 int lengthMultiplier = 1;
-// Used for detecting the long press
-uint8_t pressTicks = 0;
+uint8_t randomState = random();
 
 // The animation will work in 4 states
 // STATE_HOLD_OFF
@@ -78,14 +83,15 @@ class AnimatedPattern {
   public:
   AnimatedPattern * nextPattern;
 
-  AnimatedPattern(uint8_t * _states, uint8_t _totalStates, uint8_t _ticksOn, uint8_t _ticksAnimate, uint8_t _ticksOff) {
-    states = _states;
-    totalStates = _totalStates;
-    ticksOn = _ticksOn;
-    ticksOff = _ticksOff;
-    ticksAnimate = _ticksAnimate;
-    nextPattern = NULL;
-  }
+  /*
+    _states: array of the different states
+    _totalStates: total states in the array
+    _ticksOn: Number of ticks it stays on
+    _ticksAnimate: Number of ticks it takes to fade in and out
+    _ticksOff: Number of ticks it stays off
+    _nextPattern: The next pattern in the linked list
+    Note: Each tick is slightly more than 10ms but can be assumed to be 10ms
+  */
   AnimatedPattern(uint8_t * _states, uint8_t _totalStates, uint8_t _ticksOn, uint8_t _ticksAnimate, uint8_t _ticksOff, AnimatedPattern * _nextPattern) {
     states = _states;
     totalStates = _totalStates;
@@ -96,12 +102,18 @@ class AnimatedPattern {
   }
   void nextState() {
     currentPatternState++;
-    if (currentPatternState == totalStates) {
+    if (currentPatternState == totalStates || totalStates == 0) {
       currentPatternState = 0;
       firstRun = false;
     }
+    if (totalStates == 0) {
+      randomState = random();
+    }
   }
   uint8_t getState() {
+    if (totalStates == 0) {
+      return randomState;
+    }
     return states[currentPatternState];
   }
   uint8_t getTicksOn() {
@@ -133,7 +145,9 @@ uint8_t pattern4[] = {0b00111111};
 
 
 void setupAnimatedPatterns() {
-  animatedPatternCurrent = new AnimatedPattern(pattern1, 6, 40, 10, 0);
+  
+  animatedPatternCurrent = new AnimatedPattern(NULL, 0, 40, 10, 0, NULL); // Randomly generated
+  animatedPatternCurrent = new AnimatedPattern(pattern1, 6, 40, 10, 0, animatedPatternCurrent);
   animatedPatternCurrent = new AnimatedPattern(pattern2, 6, 40, 10, 0, animatedPatternCurrent);
   animatedPatternCurrent = new AnimatedPattern(pattern3, 10, 40, 10, 0, animatedPatternCurrent);
   animatedPatternCurrent = new AnimatedPattern(pattern4, 1, 100, 0, 0, animatedPatternCurrent);
@@ -160,23 +174,18 @@ bool buttonRelease(uint8_t btn) {
 
 void buttonStatePreLoop() {
   uint16_t input = analogRead(BUTTON_PIN);
-  pressTicks++;
-  if (input < BUTTON_OFF_THRESHOLD) { // Button is not being pressed
-    buttonStates[BTN_LIGHT] = buttonStates[BTN_MODE] = 0;
-  } else {
-    buttonStates[BTN_MODE] = input > SECOND_BUTTON_THRESHOLD;
-    buttonStates[BTN_LIGHT] = !buttonStates[BTN_MODE];
-  }
+  for ( int i = 0; i < 3; i++ ) buttonStates[i] = false;
+  if (input > SECOND_BUTTON_THRESHOLD) buttonStates[BTN_SPEED] = true;
+  else if (input > THIRD_BUTTON_THRESHOLD) buttonStates[BTN_LIGHT] = true;
+  else if (input > BUTTON_OFF_THRESHOLD) buttonStates[BTN_MODE] = true;
 }
 
 void buttonStatePostLoop() {
-  for ( int i = 0; i < 2; i++ ) buttonStatesPrev[i] = buttonStates[i];
-  if (!buttonStates[BTN_LIGHT] && !buttonStates[BTN_MODE])
-    pressTicks = 0;
+  for ( int i = 0; i < 3; i++ ) buttonStatesPrev[i] = buttonStates[i];
 }
 
-
 void setup() {
+  randomSeed(analogRead(A2));
   pinMode(SR_LATCH_PIN, OUTPUT);
   pinMode(SR_CLOCK_PIN, OUTPUT);
   pinMode(SR_DATA_PIN, OUTPUT);
@@ -185,7 +194,7 @@ void setup() {
   #ifdef ARDUINO_DEBUG_MODE
     Serial.begin(9600);
   #endif
-
+  
   setupAnimatedPatterns();
   nextPattern();
 }
@@ -194,23 +203,19 @@ void loop() {
   // Calculate buttons
   buttonStatePreLoop();
 
-  if (buttonRelease(BTN_LIGHT)) {
-    if (pressTicks >= LONG_PRESS_TICKS) {
-      currentBrightnessLevel++;
-      if (currentBrightnessLevel >= 8)
-        currentBrightnessLevel = 0;
-    } else {
-      stateTicksLeft = 1;
-      lengthMultiplier++;
-      if (lengthMultiplier > MAX_LENGTH_MULTIPLIER) lengthMultiplier = 1;
-    }
+  if (buttonRelease(BTN_SPEED)) {
+    stateTicksLeft = 1;
+    lengthMultiplier++;
+    if (lengthMultiplier > MAX_LENGTH_MULTIPLIER) lengthMultiplier = 1;
   }
-
+  if (buttonRelease(BTN_LIGHT)) {
+    currentBrightnessLevel++;
+    if (currentBrightnessLevel >= 8)
+      currentBrightnessLevel = 0;
+  }
   if (buttonRelease(BTN_MODE)) {
-    if (pressTicks < LONG_PRESS_TICKS) {
-      nextPattern();
-    }
-    // Pressing and holding, or just changing patterns will reset the length multiplier
+    nextPattern();
+    // Changing patterns will reset the length multiplier
     lengthMultiplier = 1;
   }
 
