@@ -63,7 +63,7 @@ bool firstRun = true;
 float brightnessLevels[8] = { 1.0f, 0.7f, 0.5f, 0.35f, 0.2f, 0.1f, 0.05f, 0.025f};
 int currentBrightnessLevel = 0;
 int lengthMultiplier = 1;
-uint8_t randomState = random();
+uint16_t randomState = random();
 
 // The animation will work in 4 states
 // STATE_HOLD_OFF
@@ -73,7 +73,7 @@ uint8_t randomState = random();
 
 class AnimatedPattern {
   private:
-  uint8_t * states; // 16
+  uint16_t * states; // 16
   uint8_t totalStates;
   uint8_t ticksOn; // 16
   uint8_t ticksOff; // 16
@@ -92,7 +92,7 @@ class AnimatedPattern {
     _nextPattern: The next pattern in the linked list
     Note: Each tick is slightly more than 10ms but can be assumed to be 10ms
   */
-  AnimatedPattern(uint8_t * _states, uint8_t _totalStates, uint8_t _ticksOn, uint8_t _ticksAnimate, uint8_t _ticksOff, AnimatedPattern * _nextPattern) {
+  AnimatedPattern(uint16_t * _states, uint8_t _totalStates, uint8_t _ticksOn, uint8_t _ticksAnimate, uint8_t _ticksOff, AnimatedPattern * _nextPattern) {
     states = _states;
     totalStates = _totalStates;
     ticksOn = _ticksOn;
@@ -110,7 +110,7 @@ class AnimatedPattern {
       randomState = random();
     }
   }
-  uint8_t getState() {
+  uint16_t getState() {
     if (totalStates == 0) {
       return randomState;
     }
@@ -134,14 +134,22 @@ AnimatedPattern * animatedPatternCurrent;
 // Patterns are defined as integers, but only the first 6 bits from the right are used.
 // 1 represents on an state, while 0 represents an off state.
 // The bits from right to left control the following lines respectively
-// NSL, EWL, NEL, CCL, DTL, TEL.
+// Bart Yellow, Bart Blue, Bart Orange, Bart Green, Bart Red, Bart Grey, None, None,
+// Caltrain Zone 1, Caltrain Zone 2, Caltrain Zone 3, Caltrain Zone 4, Caltrain Zone 5, Caltrain Zone 6, None, None,
 // For example:
-// 0b00000011
-// NSL and EWL are on, while the rest are not.
-uint8_t pattern1[] = {0b00000001, 0b00000010, 0b00000100, 0b00001000, 0b00010000, 0b00100000};
-uint8_t pattern2[] = {0b00000001, 0b00000011, 0b00000111, 0b00001111, 0b00011111, 0b00111111};
-uint8_t pattern3[] = {0b00000001, 0b00000011, 0b00000111, 0b00001111, 0b00011111, 0b00111111, 0b00011111, 0b00001111, 0b00000111, 0b00000011};
-uint8_t pattern4[] = {0b00111111};
+
+uint16_t pattern1[] = {0b0000000000000000, 0b0000000000000000, 0b0000000000000000, 0b0000000000000000, 0b0000000000000000, 0b0000000000000000,
+                       0b0000000000000000, 0b0000000000000000, 0b0000000000000000, 0b0000000000000000, 0b0000000000000000, 0b0000000000000000,};
+uint16_t pattern2[] = {0b0000000000000000, 0b0000000000000000, 0b0000000000000000, 0b0000000000000000, 0b0000000000000000, 0b0000000000000000,
+                       0b0000000000000000, 0b0000000000000000, 0b0000000000000000, 0b0000000000000000, 0b0000000000000000, 0b0000000000000000,};
+uint16_t pattern3[] = {0b0000000000000000, 0b0000000000000000, 0b0000000000000000, 0b0000000000000000, 0b0000000000000000, 0b0000000000000000,
+                       0b0000000000000000, 0b0000000000000000, 0b0000000000000000, 0b0000000000000000, 0b0000000000000000, 0b0000000000000000,};
+uint16_t pattern4[] = {0b0000000000000000, 0b0000000000000000, 0b0000000000000000, 0b0000000000000000, 0b0000000000000000, 0b0000000000000000,
+                       0b0000000000000000, 0b0000000000000000, 0b0000000000000000, 0b0000000000000000, 0b0000000000000000, 0b0000000000000000,};
+uint16_t pattern5[] = {0b0011111100000000, 0b0000000000111111};
+uint16_t pattern6[] = {0b0011111100000000};
+uint16_t pattern7[] = {0b0000000000111111};
+uint16_t pattern8[] = {0b0011111100111111};
 
 
 void setupAnimatedPatterns() {
@@ -149,9 +157,14 @@ void setupAnimatedPatterns() {
   animatedPatternCurrent = new AnimatedPattern(NULL, 0, 40, 10, 0, NULL); // Randomly generated
   animatedPatternCurrent = new AnimatedPattern(pattern1, 6, 40, 10, 0, animatedPatternCurrent);
   animatedPatternCurrent = new AnimatedPattern(pattern2, 6, 40, 10, 0, animatedPatternCurrent);
-  animatedPatternCurrent = new AnimatedPattern(pattern3, 10, 40, 10, 0, animatedPatternCurrent);
-  animatedPatternCurrent = new AnimatedPattern(pattern4, 1, 100, 0, 0, animatedPatternCurrent);
-  animatedPatternCurrent = new AnimatedPattern(pattern4, 1, 10, 100, 10, animatedPatternCurrent);
+  animatedPatternCurrent = new AnimatedPattern(pattern3, 6, 40, 10, 0, animatedPatternCurrent);
+  animatedPatternCurrent = new AnimatedPattern(pattern4, 6, 40, 10, 0, animatedPatternCurrent);
+  animatedPatternCurrent = new AnimatedPattern(pattern5, 1, 100, 0, 0, animatedPatternCurrent);
+  animatedPatternCurrent = new AnimatedPattern(pattern5, 1, 10, 100, 10, animatedPatternCurrent);
+  animatedPatternCurrent = new AnimatedPattern(pattern6, 1, 100, 0, 0, animatedPatternCurrent);
+  animatedPatternCurrent = new AnimatedPattern(pattern7, 1, 100, 0, 0, animatedPatternCurrent);
+  animatedPatternCurrent = new AnimatedPattern(pattern8, 6, 40, 10, 0, animatedPatternCurrent);
+
 
   animatedPatternHead = animatedPatternCurrent;
 }
@@ -275,7 +288,8 @@ void loop() {
 
   // Set the image state
   digitalWrite(SR_LATCH_PIN, LOW);
-  shiftOut(SR_DATA_PIN, SR_CLOCK_PIN, MSBFIRST, animatedPatternCurrent->getState());
+  shiftOut(SR_DATA_PIN, SR_CLOCK_PIN, MSBFIRST, highByte(animatedPatternCurrent->getState()));
+  shiftOut(SR_DATA_PIN, SR_CLOCK_PIN, MSBFIRST, lowByte(animatedPatternCurrent->getState()));
   digitalWrite(SR_LATCH_PIN, HIGH);
 
   // puts("Brightness "); putsln(brightness);
