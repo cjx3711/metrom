@@ -1,3 +1,5 @@
+#include <EEPROM.h>
+
 // These can be modified to change the program behaviour
 #define MAX_LENGTH_MULTIPLIER 10
 #define LONG_PRESS_TICKS 40
@@ -6,9 +8,10 @@
 #define PREVIEW_ON 9
 
 // Uncomment this line to set the pins to arduino uno
-// #define ARDUINO_DEBUG_MODE
+#define DEBUG_MODE
 
-#ifdef ARDUINO_DEBUG_MODE
+// #define ARDUINO_UNO_MODE
+#ifdef ARDUINO_UNO_MODE
   // Arduino Uno Pins
   #define SR_LATCH_PIN 5 // Pin connected to ST_CP of 74HC595
   #define SR_CLOCK_PIN 4 // Pin connected to SH_CP of 74HC595
@@ -18,15 +21,40 @@
   #define puts(x) Serial.print(x)
   #define putsln(x) Serial.println(x)
 #else
-  // ATTINY Pins
-  #define SR_LATCH_PIN 3 // Pin connected to ST_CP of 74HC595
-  #define SR_CLOCK_PIN 4 // Pin connected to SH_CP of 74HC595
-  #define SR_DATA_PIN 1 // Pin connected to DS of 74HC595
-  #define BUTTON_PIN A1 // Analogue Pin (A1)
-  #define BRIGHTNESS_PIN 0 // Sink pin
-  // #define puts(x) (void(0)) // Disable prints on the ATTINY
-  // #define putsln(x) (void(0)) // Disable prints on the ATTINY
+  // Arduino Pro Micro Pins
+  #define SR_LATCH_PIN 7 // Pin connected to ST_CP of 74HC595 (LATCH)
+  #define SR_CLOCK_PIN 8 // Pin connected to SH_CP of 74HC595 (CLOCK)
+  #define SR_DATA_PIN 6 // Pin connected to DS of 74HC595 (DATA)
+  #define BUTTON1_PIN A0 // Analogue Pin
+  #define BUTTON2_PIN A1 // Analogue Pin
+  #define BUTTON3_PIN A2 // Analogue Pin
+  #define BRIGHTNESS_PIN 9 // Brightness Control (LIGHT)
+  #define puts(x) Serial.print(x)
+  #define putsln(x) Serial.println(x)
 #endif
+
+/*    ATTINY85 Pins
+ * RESET +---+ VCC
+ * LATCH |   | BTN
+ * CLOCK |   | DATA
+ *   GND +---+ LIGHT
+ */
+
+/*     Arduino Pro Mini Pins
+ *        TX0 +------+ RAW
+ *        RX1 |      | GND
+ *        RST |      | RST
+ *        GND |      | VCC
+ *         D2 |      | A3
+ *         D3 |      | A2  BTN3
+ *         D4 |      | A1  BTN2
+ *         D5 |      | A0  BTN1
+ * DATA    D6 |      | D13
+ * LATCH   D7 |      | D12
+ * CLOCK   D8 |      | D11
+ * LIGHT   D9 +------+ D10
+ */
+
 
 // These should not be touched and are required for the program to run
 #define BTN_SPEED 0
@@ -38,13 +66,9 @@
 #define STATE_HOLD_ON 3
 #define STATE_TRANSITION_OFF 4
 
-// When off, expect pin to be 0
-// When first button pressed, expect pin to be 1023
-// When second button pressed, expect pin to be 512 (507 - 508 actual)
-// When third button is pressed, expect pin to be 341 (338 - 340 actual)
-#define BUTTON_OFF_THRESHOLD 10
-#define SECOND_BUTTON_THRESHOLD 750
-#define THIRD_BUTTON_THRESHOLD 425
+// Since there are 2 resistors on the buttons,
+// we need to use the analog function of the button.
+#define BUTTON_OFF_THRESHOLD 60
 
 
 
@@ -62,8 +86,9 @@ bool buttonStates [3] = {false, false, false};
 bool firstRun = true;
 
 float brightnessLevels[8] = { 1.0f, 0.7f, 0.5f, 0.35f, 0.2f, 0.1f, 0.05f, 0.025f};
-int currentBrightnessLevel = 0;
-int lengthMultiplier = 1;
+uint8_t currentBrightnessLevel = 0;
+uint8_t lengthMultiplier = 0;
+uint8_t currentPatternId = 0;
 uint8_t randomState = random();
 
 // The animation will work in 4 states
@@ -145,24 +170,35 @@ uint8_t pattern3[] = {0b00000001, 0b00000011, 0b00000111, 0b00001111, 0b00011111
 uint8_t pattern4[] = {0b11111111};
 
 
+// Includes the random pattern
+#define TOTAL_PATTERNS 6
 void setupAnimatedPatterns() {
   
   animatedPatternCurrent = new AnimatedPattern(NULL, 0, 40, 10, 0, NULL); // Randomly generated
   animatedPatternCurrent = new AnimatedPattern(pattern1, 8, 40, 10, 0, animatedPatternCurrent);
   animatedPatternCurrent = new AnimatedPattern(pattern2, 8, 40, 10, 0, animatedPatternCurrent);
   animatedPatternCurrent = new AnimatedPattern(pattern3, 14, 40, 10, 0, animatedPatternCurrent);
-  animatedPatternCurrent = new AnimatedPattern(pattern4, 1, 100, 0, 0, animatedPatternCurrent);
   animatedPatternCurrent = new AnimatedPattern(pattern4, 1, 10, 100, 10, animatedPatternCurrent);
+  animatedPatternCurrent = new AnimatedPattern(pattern4, 1, 100, 0, 0, animatedPatternCurrent);
 
   animatedPatternHead = animatedPatternCurrent;
+  lightingState = STATE_HOLD_OFF;
+  currentPatternId = 0;
+  currentPatternState = 0;
+  firstRun = true;
+  stateTicksLeft = stateTicksTotal = animatedPatternCurrent->getTicksOff();
 }
 
 void nextPattern() {
   if (animatedPatternCurrent->nextPattern) {
     animatedPatternCurrent = animatedPatternCurrent->nextPattern;
+    currentPatternId++;
   } else {
     animatedPatternCurrent = animatedPatternHead;
+    currentPatternId = 0;
   }
+  EEPROM.update(3, currentPatternId);
+
   lightingState = STATE_HOLD_OFF;
   currentPatternState = 0;
   firstRun = true;
@@ -174,30 +210,70 @@ bool buttonRelease(uint8_t btn) {
 }
 
 void buttonStatePreLoop() {
-  uint16_t input = analogRead(BUTTON_PIN);
   for ( int i = 0; i < 3; i++ ) buttonStates[i] = false;
-  if (input > SECOND_BUTTON_THRESHOLD) buttonStates[BTN_SPEED] = true;
-  else if (input > THIRD_BUTTON_THRESHOLD) buttonStates[BTN_LIGHT] = true;
-  else if (input > BUTTON_OFF_THRESHOLD) buttonStates[BTN_MODE] = true;
+  if (analogRead(BUTTON1_PIN) > BUTTON_OFF_THRESHOLD) buttonStates[BTN_MODE] = true;
+  if (analogRead(BUTTON2_PIN) > BUTTON_OFF_THRESHOLD) buttonStates[BTN_LIGHT] = true;
+  if (analogRead(BUTTON3_PIN) > BUTTON_OFF_THRESHOLD) buttonStates[BTN_SPEED] = true;
 }
 
 void buttonStatePostLoop() {
   for ( int i = 0; i < 3; i++ ) buttonStatesPrev[i] = buttonStates[i];
 }
 
+void blinkDebugLight() {
+  digitalWrite(13, HIGH);
+  delay(150);
+  digitalWrite(13, LOW);
+  delay(50);
+}
+
 void setup() {
-  randomSeed(analogRead(A2));
+  pinMode(13, OUTPUT);
+  blinkDebugLight();
+  randomSeed(analogRead(A3));
   pinMode(SR_LATCH_PIN, OUTPUT);
   pinMode(SR_CLOCK_PIN, OUTPUT);
   pinMode(SR_DATA_PIN, OUTPUT);
-  pinMode(BUTTON_PIN, INPUT);
+  pinMode(BUTTON1_PIN, INPUT);
+  pinMode(BUTTON2_PIN, INPUT);
+  pinMode(BUTTON3_PIN, INPUT);
   pinMode(BRIGHTNESS_PIN, OUTPUT);
-  #ifdef ARDUINO_DEBUG_MODE
+  #ifdef DEBUG_MODE
     Serial.begin(9600);
   #endif
+
+  uint8_t gotoPatternId = 0;
+  uint8_t isSetup = EEPROM.read(0);
+  if (isSetup != 128) {
+    EEPROM.update(0, 128);
+    EEPROM.update(1, 0);
+    EEPROM.update(2, 0);
+    EEPROM.update(3, 0);
+    putsln("First time initialisation");
+  } else {
+    currentBrightnessLevel = EEPROM.read(1);
+    lengthMultiplier = EEPROM.read(2);
+    gotoPatternId = EEPROM.read(3);
+    currentBrightnessLevel = currentBrightnessLevel % 8;
+    lengthMultiplier = lengthMultiplier % MAX_LENGTH_MULTIPLIER;
+    gotoPatternId = gotoPatternId % TOTAL_PATTERNS;
+    putsln("Loaded from memory");
+    puts("Pattern: ");
+    putsln(gotoPatternId);
+    puts("Brightness: ");
+    putsln(currentBrightnessLevel);
+    puts("Length: ");
+    putsln(lengthMultiplier);
+  }
+  
+  blinkDebugLight();
   
   setupAnimatedPatterns();
-  nextPattern();
+  for (int i = 0; i < gotoPatternId; i++) {
+    nextPattern();
+  }
+  
+  blinkDebugLight();
 }
 
 void loop() {
@@ -206,18 +282,21 @@ void loop() {
 
   if (buttonRelease(BTN_SPEED)) {
     stateTicksLeft = 1;
+    lightingState = STATE_HOLD_OFF;
     lengthMultiplier++;
-    if (lengthMultiplier > MAX_LENGTH_MULTIPLIER) lengthMultiplier = 1;
+    lengthMultiplier = lengthMultiplier % MAX_LENGTH_MULTIPLIER;
+    EEPROM.update(2, lengthMultiplier);
   }
   if (buttonRelease(BTN_LIGHT)) {
     currentBrightnessLevel++;
-    if (currentBrightnessLevel >= 8)
-      currentBrightnessLevel = 0;
+    currentBrightnessLevel = currentBrightnessLevel % 8;
+    EEPROM.update(1, currentBrightnessLevel);
   }
   if (buttonRelease(BTN_MODE)) {
     nextPattern();
     // Changing patterns will reset the length multiplier
-    lengthMultiplier = 1;
+    lengthMultiplier = 0;
+    EEPROM.update(2, lengthMultiplier);
   }
 
   buttonStatePostLoop();
@@ -249,19 +328,19 @@ void loop() {
     switch(lightingState) {
       case STATE_HOLD_OFF:
         lightingState = STATE_TRANSITION_ON;
-        stateTicksTotal = firstRun ? PREVIEW_OFF : animatedPatternCurrent->getTicksAnimate() * lengthMultiplier;
+        stateTicksTotal = firstRun ? PREVIEW_OFF : animatedPatternCurrent->getTicksAnimate() * ((lengthMultiplier*2) + 1);
         break;
       case STATE_TRANSITION_ON:
         lightingState = STATE_HOLD_ON;
-        stateTicksTotal = firstRun ? PREVIEW_TRANSITION : animatedPatternCurrent->getTicksOn() * lengthMultiplier;
+        stateTicksTotal = firstRun ? PREVIEW_TRANSITION : animatedPatternCurrent->getTicksOn() * ((lengthMultiplier*2) + 1);
         break;
       case STATE_HOLD_ON:
         lightingState = STATE_TRANSITION_OFF;
-        stateTicksTotal = firstRun ? PREVIEW_ON : animatedPatternCurrent->getTicksAnimate() * lengthMultiplier;
+        stateTicksTotal = firstRun ? PREVIEW_ON : animatedPatternCurrent->getTicksAnimate() * ((lengthMultiplier*2) + 1);
         break;
       case STATE_TRANSITION_OFF:
         lightingState = STATE_HOLD_OFF;
-        stateTicksTotal = firstRun ? PREVIEW_TRANSITION : animatedPatternCurrent->getTicksOff() * lengthMultiplier;
+        stateTicksTotal = firstRun ? PREVIEW_TRANSITION : animatedPatternCurrent->getTicksOff() * ((lengthMultiplier*2) + 1);
         animatedPatternCurrent->nextState();
         break;
     }
@@ -272,7 +351,7 @@ void loop() {
   }
   // Set pin brightness
   brightness = brightness * brightnessLevels[currentBrightnessLevel];
-  analogWrite(BRIGHTNESS_PIN, 255 - brightness); // Invert the brightness value
+  analogWrite(BRIGHTNESS_PIN, brightness); // Invert the brightness value
 
   // Set the image state
   digitalWrite(SR_LATCH_PIN, LOW);
@@ -291,6 +370,5 @@ void loop() {
 
   // For testing on ATTINY without serial
   // analogWrite(BRIGHTNESS_PIN, (millis() / 10) % 255);
-  
   delay(10);
 }

@@ -5,9 +5,11 @@
 #define PREVIEW_ON 6
 
 // Uncomment this line to set the pins to arduino uno
-//#define ARDUINO_DEBUG_MODE
+//#define ARDUINO_UNO_MODE
 
-#ifdef ARDUINO_DEBUG_MODE
+#define DEBUG_MODE
+
+#ifdef ARDUINO_UNO_MODE
   // Arduino Uno Pins
   #define SR_LATCH_PIN 5 // Pin connected to ST_CP of 74HC595
   #define SR_CLOCK_PIN 4 // Pin connected to SH_CP of 74HC595h
@@ -31,15 +33,14 @@
   #define putsln(x) Serial.println(x)
 #endif
 
-/*
+/*    ATTINY85 Pins
  * RESET +---+ VCC
  * LATCH |   | BTN
  * CLOCK |   | DATA
  *   GND +---+ LIGHT
  */
 
-
-/*         Arduino Pro Mini
+/*     Arduino Pro Mini Pins
  *        TX0 +------+ RAW
  *        RX1 |      | GND
  *        RST |      | RST
@@ -65,6 +66,10 @@
 #define STATE_TRANSITION_ON 2
 #define STATE_HOLD_ON 3
 #define STATE_TRANSITION_OFF 4
+
+// Since there are 2 resistors on the buttons,
+// we need to use the analog function of the button.
+#define BUTTON_OFF_THRESHOLD 60
 
 uint8_t lightingState;
 uint16_t stateTicksTotal;
@@ -193,15 +198,9 @@ bool buttonRelease(uint8_t btn) {
 
 void buttonStatePreLoop() {
   for ( int i = 0; i < 3; i++ ) buttonStates[i] = false;
-  if (analogRead(BUTTON1_PIN) > 60) buttonStates[BTN_MODE] = true;
-  if (analogRead(BUTTON2_PIN) > 60) buttonStates[BTN_LIGHT] = true;
-  if (analogRead(BUTTON3_PIN) > 60) buttonStates[BTN_SPEED] = true;
-  Serial.print(analogRead(BUTTON1_PIN));
-  Serial.print(' ');
-  Serial.print(analogRead(BUTTON2_PIN));
-  Serial.print(' ');
-  Serial.print(analogRead(BUTTON3_PIN));
-  Serial.println(' ');
+  if (analogRead(BUTTON1_PIN) > BUTTON_OFF_THRESHOLD) buttonStates[BTN_MODE] = true;
+  if (analogRead(BUTTON2_PIN) > BUTTON_OFF_THRESHOLD) buttonStates[BTN_LIGHT] = true;
+  if (analogRead(BUTTON3_PIN) > BUTTON_OFF_THRESHOLD) buttonStates[BTN_SPEED] = true;
 }
 
 void buttonStatePostLoop() {
@@ -217,7 +216,7 @@ void blinkDebugLight() {
 void setup() {
   pinMode(13, OUTPUT);
   blinkDebugLight();
-  randomSeed(analogRead(A2));
+  randomSeed(analogRead(A3));
   pinMode(SR_LATCH_PIN, OUTPUT);
   pinMode(SR_CLOCK_PIN, OUTPUT);
   pinMode(SR_DATA_PIN, OUTPUT);
@@ -225,8 +224,9 @@ void setup() {
   pinMode(BUTTON2_PIN, INPUT);
   pinMode(BUTTON3_PIN, INPUT);
   pinMode(BRIGHTNESS_PIN, OUTPUT);
-
-  Serial.begin(9600);
+  #ifdef DEBUG_MODE
+    Serial.begin(9600);
+  #endif
 
   blinkDebugLight();
   
