@@ -157,9 +157,12 @@ AnimatedPattern * animatedPatternCurrent;
 // Patterns are defined as integers, but only the first 6 bits from the right are used.
 // 1 represents on an state, while 0 represents an off state.
 // The bits from right to left control the following lines respectively
-// Bart Yellow, Bart Blue, Bart Orange, Bart Green, Bart Red, Bart Grey, None, None,
-// Caltrain Zone 1, Caltrain Zone 2, Caltrain Zone 3, Caltrain Zone 4, Caltrain Zone 5, Caltrain Zone 6, None, None,
+// Saikyo, Chuo-Sobu, Chuo, Keiyo, Yokohama, Joban, Negishi / Keihin-Tokoku, Musashino,
+// Nanbu, Yokosuka / Sobu, Shonan Shinjuku, Tokaido Main Line, Takasaki, Yamanote, Tokyo Monorail, Shinkansen
 // For example:
+// 0b0000000100000001
+// Saikyo and Nanbu will light up
+
 
 uint16_t pattern1[] = {0b0000000000000001, 0b0000000000000010, 0b0000000000000100, 0b0000000000001000, 0b0000000000010000, 0b0000000000100000,
                        0b0000000001000000, 0b0000000010000000, 0b0000000100000000, 0b0000001000000000, 0b0000010000000000, 0b0000100000000000,
