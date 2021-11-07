@@ -17,6 +17,7 @@
   #define BUTTON1_PIN A0 // Analogue Pin
   #define BUTTON2_PIN A1 // Analogue Pin
   #define BUTTON3_PIN A2 // Analogue Pin
+  #define LIGHT_SENSOR_PIN A3 // Analogue Pin
   #define BRIGHTNESS_PIN 3 // Sink pin
   #define puts(x) Serial.print(x)
   #define putsln(x) Serial.println(x)
@@ -28,6 +29,7 @@
   #define BUTTON1_PIN A0 // Analogue Pin
   #define BUTTON2_PIN A1 // Analogue Pin
   #define BUTTON3_PIN A2 // Analogue Pin
+  #define LIGHT_SENSOR_PIN A3 // Analogue Pin
   #define BRIGHTNESS_PIN 9 // Brightness Control (LIGHT)
   #define puts(x) Serial.print(x)
   #define putsln(x) Serial.println(x)
@@ -45,7 +47,7 @@
  *        RX1 |      | GND
  *        RST |      | RST
  *        GND |      | VCC
- *         D2 |      | A3
+ *         D2 |      | A3  LIGHT SENSOR
  *         D3 |      | A2  BTN3
  *         D4 |      | A1  BTN2
  *         D5 |      | A0  BTN1
@@ -87,6 +89,8 @@ float brightnessLevels[8] = { 1.0f, 0.7f, 0.5f, 0.35f, 0.2f, 0.1f, 0.05f, 0.025f
 int currentBrightnessLevel = 0;
 int lengthMultiplier = 1;
 uint16_t randomState = random();
+
+int runningAverage = 0;
 
 // The animation will work in 4 states
 // STATE_HOLD_OFF
@@ -226,6 +230,7 @@ void setup() {
   pinMode(BUTTON1_PIN, INPUT);
   pinMode(BUTTON2_PIN, INPUT);
   pinMode(BUTTON3_PIN, INPUT);
+  pinMode(LIGHT_SENSOR_PIN, INPUT);
   pinMode(BRIGHTNESS_PIN, OUTPUT);
   #ifdef DEBUG_MODE
     Serial.begin(9600);
@@ -310,6 +315,34 @@ void loop() {
     stateTicksLeft--;
   }
   // Set pin brightness
+  int lightAnalogValue = analogRead(LIGHT_SENSOR_PIN);
+
+  runningAverage = lightAnalogValue * 0.1 + runningAverage * 0.9;
+
+  puts("Analog reading: ");
+  puts(runningAverage);   // the raw analog reading
+
+  // We'll have a few threshholds, qualitatively determined
+  if (runningAverage < 20) {
+    currentBrightnessLevel = 7;
+  } else if (runningAverage < 50) {
+    currentBrightnessLevel = 6;
+  } else if (runningAverage < 100) {
+    currentBrightnessLevel = 5;
+  } else if (runningAverage < 150) {
+    currentBrightnessLevel = 4;
+  } else if (runningAverage < 250) {
+    currentBrightnessLevel = 3;
+  } else if (runningAverage < 350) {
+    currentBrightnessLevel = 2;
+  } else if (runningAverage < 500) {
+    currentBrightnessLevel = 1;
+  } else {
+    currentBrightnessLevel = 0;
+  }
+  puts(" - Brightness:");
+  putsln(currentBrightnessLevel);
+
   brightness = brightness * brightnessLevels[currentBrightnessLevel];
   analogWrite(BRIGHTNESS_PIN, brightness);
 
@@ -318,6 +351,9 @@ void loop() {
   shiftOut(SR_DATA_PIN, SR_CLOCK_PIN, MSBFIRST, highByte(animatedPatternCurrent->getState()));
   shiftOut(SR_DATA_PIN, SR_CLOCK_PIN, MSBFIRST, lowByte(animatedPatternCurrent->getState()));
   digitalWrite(SR_LATCH_PIN, HIGH);
+
+
+
 
   // puts("Brightness "); putsln(brightness);
   // puts(currentPatternState); puts(' ');
