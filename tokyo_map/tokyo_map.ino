@@ -1,5 +1,8 @@
+#include <EEPROM.h>
+
 // These can be modified to change the program behaviour
 #define MAX_LENGTH_MULTIPLIER 10
+#define LONG_PRESS_THRESHOLD 1000
 #define PREVIEW_OFF 2
 #define PREVIEW_TRANSITION 4
 #define PREVIEW_ON 6
@@ -69,6 +72,11 @@
 #define STATE_HOLD_ON 3
 #define STATE_TRANSITION_OFF 4
 
+#define CALSTATE_OFF 0
+#define CALSTATE_START 1
+#define CALSTATE_LOW 2
+#define CALSTATE_HIGH 3
+
 // Since there are 2 resistors on the buttons,
 // we need to use the analog function of the button.
 #define BUTTON_OFF_THRESHOLD 60
@@ -78,19 +86,38 @@ uint16_t stateTicksTotal;
 uint16_t stateTicksLeft;
 
 uint8_t currentPatternState;
+uint8_t calibrationState = CALSTATE_OFF;
 
 
 // Button states for SPEED, BRIGHTNESS, MODE
 bool buttonStatesPrev [3] = {false, false, false};
 bool buttonStates [3] = {false, false, false};
+unsigned long longPressMills [] = {0,0,0,0};
+bool longPressFired[3] = {false, false, false};
+
 bool firstRun = true;
 
 float brightnessLevels[8] = { 1.0f, 0.7f, 0.5f, 0.35f, 0.2f, 0.1f, 0.05f, 0.025f};
-int currentBrightnessLevel = 0;
-int lengthMultiplier = 1;
 uint16_t randomState = random();
 
-int runningAverage = 0;
+int lowBrightness = 20;
+int highBrightness = 500;
+
+int photosensorRunningAverage = 0;
+
+unsigned long millsDelta;
+unsigned long prevMills;
+unsigned long currentMills;
+
+
+// Savable variables
+uint8_t currentBrightnessLevel = 0;
+uint8_t lengthMultiplier = 1;
+uint8_t currentPatternId = 0;
+uint8_t autoBrightness = 1;
+uint8_t minPhotosensor = 5;
+uint8_t maxPhotosensor = 128;
+
 
 // The animation will work in 4 states
 // STATE_HOLD_OFF
@@ -176,7 +203,7 @@ uint16_t pattern2[] = {0b0000000000000001, 0b0000000000000011, 0b000000000000011
                        0b0001111111111111, 0b0011111111111111, 0b0111111111111111, 0b1111111111111111};
 uint16_t pattern8[] = {0b1111111111111111};
 
-
+#define TOTAL_PATTERNS 4
 void setupAnimatedPatterns() {
   
   animatedPatternCurrent = new AnimatedPattern(NULL, 0, 50, 10, 0, NULL); // Randomly generated
@@ -190,40 +217,106 @@ void setupAnimatedPatterns() {
 void nextPattern() {
   if (animatedPatternCurrent->nextPattern) {
     animatedPatternCurrent = animatedPatternCurrent->nextPattern;
+    currentPatternId++;
   } else {
     animatedPatternCurrent = animatedPatternHead;
+    currentPatternId = 0;
   }
+  EEPROM.update(3, currentPatternId);
   lightingState = STATE_HOLD_OFF;
   currentPatternState = 0;
   firstRun = true;
   stateTicksLeft = stateTicksTotal = animatedPatternCurrent->getTicksOff();
 }
 
+bool buttonHold(uint8_t btn) {
+  if (longPressMills[btn] > LONG_PRESS_THRESHOLD && !longPressFired[btn]) {
+    longPressFired[btn] = true;
+    return true;
+  }
+  return false;
+}
+
 bool buttonRelease(uint8_t btn) {
+  if (longPressMills[btn] >= LONG_PRESS_THRESHOLD) return false;
   return !buttonStates[btn] && buttonStatesPrev[btn];
 }
+
+bool anyButtonRelease() {
+  return buttonRelease(BTN_MODE) || buttonRelease(BTN_LIGHT) || buttonRelease(BTN_SPEED);
+}
+
+void timerPreLoop() {
+  prevMills = currentMills;
+  currentMills = millis();
+  millsDelta = currentMills - prevMills;
+}
+
 
 void buttonStatePreLoop() {
   for ( int i = 0; i < 3; i++ ) buttonStates[i] = false;
   if (analogRead(BUTTON1_PIN) > BUTTON_OFF_THRESHOLD) buttonStates[BTN_MODE] = true;
   if (analogRead(BUTTON2_PIN) > BUTTON_OFF_THRESHOLD) buttonStates[BTN_LIGHT] = true;
   if (analogRead(BUTTON3_PIN) > BUTTON_OFF_THRESHOLD) buttonStates[BTN_SPEED] = true;
+
+  for (int i = 0; i < 3; i++) {
+    if (buttonStates[i]) {
+      longPressMills[i] += millsDelta;
+    } else {
+      longPressMills[i] = 0;
+      longPressFired[i] = false;
+    }
+  }
 }
 
 void buttonStatePostLoop() {
   for ( int i = 0; i < 3; i++ ) buttonStatesPrev[i] = buttonStates[i];
 }
 
-void blinkDebugLight() {
-  digitalWrite(13, HIGH);
-  delay(200);
-  digitalWrite(13, LOW);
-  delay(100);
+void setAllOn() {
+    digitalWrite(SR_LATCH_PIN, LOW);
+    shiftOut(SR_DATA_PIN, SR_CLOCK_PIN, MSBFIRST, 0b11111111);
+    shiftOut(SR_DATA_PIN, SR_CLOCK_PIN, MSBFIRST, 0b11111111);
+    digitalWrite(SR_LATCH_PIN, HIGH);
 }
-void setup() {
-  pinMode(13, OUTPUT);
-  blinkDebugLight();
-  randomSeed(analogRead(A3));
+void feedbackOn(uint16_t time) {
+    digitalWrite(13, HIGH);
+    analogWrite(BRIGHTNESS_PIN, 255);
+    delay(time);
+}
+void feedbackOff(uint16_t time) {
+    digitalWrite(13, LOW);
+    analogWrite(BRIGHTNESS_PIN, 0);
+    delay(time);
+}
+
+void blinkDebugLight() {
+  #ifdef DEBUG_MODE
+    setAllOn();
+    feedbackOn(150);
+    feedbackOff(80);
+  #endif
+}
+
+void blinkA() {
+    setAllOn();
+    feedbackOff(300);
+    feedbackOn(250);
+    feedbackOff(200);
+    feedbackOn(900);
+    feedbackOff(300);
+}
+void blinkM() {
+    setAllOn();
+    feedbackOff(300);
+    feedbackOn(600);
+    feedbackOff(200);
+    feedbackOn(600);
+    feedbackOff(300);
+}
+
+
+void setupPinModes() {
   pinMode(SR_LATCH_PIN, OUTPUT);
   pinMode(SR_CLOCK_PIN, OUTPUT);
   pinMode(SR_DATA_PIN, OUTPUT);
@@ -232,39 +325,93 @@ void setup() {
   pinMode(BUTTON3_PIN, INPUT);
   pinMode(LIGHT_SENSOR_PIN, INPUT);
   pinMode(BRIGHTNESS_PIN, OUTPUT);
-  #ifdef DEBUG_MODE
-    Serial.begin(9600);
-  #endif
+}
+void resetFactorySettings() {
+  EEPROM.update(0, 0); // First bit is reset so that the program will reset.
+  putsln("Reset to factory settings");
+}
+void firstTimeSetup() {
+  currentBrightnessLevel = 0;
+  lengthMultiplier = 0;
+  currentPatternId = 0;
+  autoBrightness = 1;
+  minPhotosensor = 5;
+  maxPhotosensor = 128;
+  EEPROM.update(1, currentBrightnessLevel);
+  EEPROM.update(2, lengthMultiplier);
+  EEPROM.update(3, currentPatternId);
+  EEPROM.update(4, autoBrightness);
+  EEPROM.update(5, minPhotosensor);
+  EEPROM.update(6, maxPhotosensor);
+  EEPROM.update(0, 128);
+  putsln("First time initialisation");
+}
+void readFromMemory() {
+    currentBrightnessLevel = EEPROM.read(1);
+    lengthMultiplier = EEPROM.read(2);
+    currentPatternId = EEPROM.read(3);
+    autoBrightness = EEPROM.read(4);
+    minPhotosensor = EEPROM.read(5);
+    maxPhotosensor = EEPROM.read(6);
 
-  blinkDebugLight();
-  
-  setupAnimatedPatterns();
-  nextPattern();
-  
-  blinkDebugLight();
+    currentBrightnessLevel = currentBrightnessLevel % 8;
+    lengthMultiplier = lengthMultiplier % MAX_LENGTH_MULTIPLIER;
+    currentPatternId = currentPatternId % TOTAL_PATTERNS;
+
+    putsln("Loaded from memory");
+    puts("Pattern: ");
+    putsln(currentPatternId);
+    puts("Brightness: ");
+    putsln(currentBrightnessLevel);
+    puts("Length: ");
+    putsln(lengthMultiplier);
+    puts("Auto Brightness: ");
+    putsln(autoBrightness ? "True" : "False");
+    puts("Photosensor calibration min: ");
+    putsln(minPhotosensor);
+    puts("Photosensor calibration max: ");
+    putsln(maxPhotosensor);
 }
 
-void loop() {
-  // Calculate buttons
-  buttonStatePreLoop();
 
+void normalState() {
   if (buttonRelease(BTN_SPEED)) {
     stateTicksLeft = 1;
+    lightingState = STATE_HOLD_OFF;
     lengthMultiplier++;
-    if (lengthMultiplier > MAX_LENGTH_MULTIPLIER) lengthMultiplier = 1;
+    lengthMultiplier = lengthMultiplier % MAX_LENGTH_MULTIPLIER;
+    EEPROM.update(2, lengthMultiplier);
+
   }
   if (buttonRelease(BTN_LIGHT)) {
     currentBrightnessLevel++;
-    if (currentBrightnessLevel >= 8)
-      currentBrightnessLevel = 0;
+    currentBrightnessLevel = currentBrightnessLevel % 8;
+    EEPROM.update(1, currentBrightnessLevel);
   }
   if (buttonRelease(BTN_MODE)) {
     nextPattern();
     // Changing patterns will reset the length multiplier
-    lengthMultiplier = 1;
+    lengthMultiplier = 0;
+    EEPROM.update(2, lengthMultiplier);
   }
 
-  buttonStatePostLoop();
+  if (buttonHold(BTN_LIGHT)) {
+    if (buttonStates[BTN_MODE] && buttonStates[BTN_SPEED]) {
+      putsln("Calibrate Mode");
+      calibrationState = CALSTATE_START;
+    } else {
+      if (autoBrightness == 1) {
+        autoBrightness = 0;
+        putsln("Turned off auto brightness");
+        blinkM();
+      } else {
+        autoBrightness = 1;
+        putsln("Turned on auto brightness");
+        blinkA();
+      }
+      EEPROM.update(4, autoBrightness);
+    }
+  }
 
   // Process lighting state
   // If this state is 0 ticks, it will skip the rest of the loop
@@ -286,6 +433,7 @@ void loop() {
       brightness = percentage * 255.0f;
       break;
   }
+
   // State changing
   bool skipLoop = false;
   if (stateTicksTotal == 0) skipLoop = true;
@@ -293,19 +441,19 @@ void loop() {
     switch(lightingState) {
       case STATE_HOLD_OFF:
         lightingState = STATE_TRANSITION_ON;
-        stateTicksTotal = firstRun ? PREVIEW_OFF : animatedPatternCurrent->getTicksAnimate() * lengthMultiplier;
+        stateTicksTotal = firstRun ? PREVIEW_OFF : animatedPatternCurrent->getTicksAnimate() * ((lengthMultiplier*2) + 1);
         break;
       case STATE_TRANSITION_ON:
         lightingState = STATE_HOLD_ON;
-        stateTicksTotal = firstRun ? PREVIEW_TRANSITION : animatedPatternCurrent->getTicksOn() * lengthMultiplier;
+        stateTicksTotal = firstRun ? PREVIEW_TRANSITION : animatedPatternCurrent->getTicksOn() * ((lengthMultiplier*2) + 1);
         break;
       case STATE_HOLD_ON:
         lightingState = STATE_TRANSITION_OFF;
-        stateTicksTotal = firstRun ? PREVIEW_ON : animatedPatternCurrent->getTicksAnimate() * lengthMultiplier;
+        stateTicksTotal = firstRun ? PREVIEW_ON : animatedPatternCurrent->getTicksAnimate() * ((lengthMultiplier*2) + 1);
         break;
       case STATE_TRANSITION_OFF:
         lightingState = STATE_HOLD_OFF;
-        stateTicksTotal = firstRun ? PREVIEW_TRANSITION : animatedPatternCurrent->getTicksOff() * lengthMultiplier;
+        stateTicksTotal = firstRun ? PREVIEW_TRANSITION : animatedPatternCurrent->getTicksOff() * ((lengthMultiplier*2) + 1);
         animatedPatternCurrent->nextState();
         break;
     }
@@ -314,36 +462,22 @@ void loop() {
   } else {
     stateTicksLeft--;
   }
+
   // Set pin brightness
   int lightAnalogValue = analogRead(LIGHT_SENSOR_PIN);
 
-  runningAverage = lightAnalogValue * 0.1 + runningAverage * 0.9;
-
-  puts("Analog reading: ");
-  puts(runningAverage);   // the raw analog reading
-
-  // We'll have a few threshholds, qualitatively determined
-  if (runningAverage < 20) {
-    currentBrightnessLevel = 7;
-  } else if (runningAverage < 50) {
-    currentBrightnessLevel = 6;
-  } else if (runningAverage < 100) {
-    currentBrightnessLevel = 5;
-  } else if (runningAverage < 150) {
-    currentBrightnessLevel = 4;
-  } else if (runningAverage < 250) {
-    currentBrightnessLevel = 3;
-  } else if (runningAverage < 350) {
-    currentBrightnessLevel = 2;
-  } else if (runningAverage < 500) {
-    currentBrightnessLevel = 1;
+  photosensorRunningAverage = lightAnalogValue * 0.04 + photosensorRunningAverage * 0.96;
+  if (autoBrightness) {
+    float lightValue = photosensorRunningAverage - minPhotosensor * 4;
+    float maxLightValue = maxPhotosensor * 4;
+    float brightPercent = lightValue / (maxLightValue - (minPhotosensor * 4));
+    if (brightPercent > 1) brightPercent = 1;
+    if (brightPercent < 0) brightPercent = 0;
+    // putsln(brightPercent);
+    brightness = brightness * (brightPercent * 0.975 + 0.025);
   } else {
-    currentBrightnessLevel = 0;
+    brightness = brightness * brightnessLevels[currentBrightnessLevel];
   }
-  puts(" - Brightness:");
-  putsln(currentBrightnessLevel);
-
-  brightness = brightness * brightnessLevels[currentBrightnessLevel];
   analogWrite(BRIGHTNESS_PIN, brightness);
 
   // Set the image state
@@ -351,9 +485,6 @@ void loop() {
   shiftOut(SR_DATA_PIN, SR_CLOCK_PIN, MSBFIRST, highByte(animatedPatternCurrent->getState()));
   shiftOut(SR_DATA_PIN, SR_CLOCK_PIN, MSBFIRST, lowByte(animatedPatternCurrent->getState()));
   digitalWrite(SR_LATCH_PIN, HIGH);
-
-
-
 
   // puts("Brightness "); putsln(brightness);
   // puts(currentPatternState); puts(' ');
@@ -367,6 +498,87 @@ void loop() {
 
   // For testing on ATTINY without serial
   // analogWrite(BRIGHTNESS_PIN, (millis() / 10) % 255);
+}
+
+
+
+void setup() {
+  #ifdef DEBUG_MODE
+    Serial.begin(9600);
+    pinMode(13, OUTPUT);
+  #endif
+  putsln("Start setup");
+
+  blinkDebugLight();
+
+  setupPinModes();
+  randomSeed(analogRead(A3));
   
+  buttonStatePreLoop();
+  if (buttonStates[BTN_MODE] && buttonStates[BTN_LIGHT] && buttonStates[BTN_SPEED]) {
+    resetFactorySettings();
+  }
+
+  putsln("Reading from eeprom");
+  if (EEPROM.read(0) != 128) {
+    firstTimeSetup();
+  } else {
+    readFromMemory();
+  }
+
+  blinkDebugLight();
+  
+  putsln("Setting up animated patterns");
+  setupAnimatedPatterns();
+  int gotoPatternId = currentPatternId;
+  currentPatternId = 0;
+  // for (int i = 0; i < gotoPatternId; i++) {
+    nextPattern();
+  // }
+  
+  blinkDebugLight();
+  putsln("Done setup");
+}
+
+void loop() {
+  // Calculate buttons
+  timerPreLoop();
+  buttonStatePreLoop();
+
+  if (calibrationState == CALSTATE_OFF) {
+    // putsln("Normal State");
+    normalState();
+  } else {
+    // putsln("Calibration State");
+    uint8_t calibrationBrightness = 0;
+    photosensorRunningAverage = analogRead(LIGHT_SENSOR_PIN) * 0.3 + photosensorRunningAverage * 0.7;
+    uint8_t photosensorSave = photosensorRunningAverage / 4;
+    if (calibrationState == CALSTATE_START) {
+      if (!buttonStates[BTN_MODE] && !buttonStates[BTN_LIGHT] && !buttonStates[BTN_SPEED])
+        calibrationState = CALSTATE_LOW;
+    } else if (calibrationState == CALSTATE_LOW) {
+      calibrationBrightness = 50;
+      if (anyButtonRelease()) {
+        EEPROM.update(5, photosensorSave);
+        minPhotosensor = photosensorSave;
+        calibrationState = CALSTATE_HIGH;
+      }
+    } else if (calibrationState == CALSTATE_HIGH) {
+      calibrationBrightness = 255;
+      if (anyButtonRelease()) {
+        EEPROM.update(6, photosensorSave);
+        maxPhotosensor = photosensorSave;
+        calibrationState = CALSTATE_OFF;
+      }
+    }
+    setAllOn();
+    if (millis() % 1000 < 500) {
+      analogWrite(BRIGHTNESS_PIN, calibrationBrightness);
+    } else {
+      analogWrite(BRIGHTNESS_PIN, 0);
+    }
+  }
+
+  buttonStatePostLoop();
   delay(10);
 }
