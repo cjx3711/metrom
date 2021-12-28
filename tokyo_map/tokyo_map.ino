@@ -194,22 +194,34 @@ AnimatedPattern * animatedPatternCurrent;
 // 0b0000000100000001
 // Saikyo and Nanbu will light up
 
+// One at a time from the center
+uint16_t pattern1[] = {0b0000000000100000, 0b0000010000000000, 0b0000001000000000, 0b0000000100000000, 
+                       0b0100000000000000, 0b0000000000000010, 0b0000000000000100, 0b0000000000001000,
+                       0b0000100000000000, 0b0000000000000001, 0b1000000000000000, 0b0000000000010000,
+                       0b0000000001000000, 0b0010000000000000, 0b0001000000000000, 0b0000000010000000};
+// Filling from the center
+uint16_t pattern2[] = {0b0000000000100000, 0b0000010000100000, 0b0000011000100000, 0b0000011100100000,
+                       0b0100011100100000, 0b0100011100100010, 0b0100011100100110, 0b0100011100101110,
+                       0b0100111100101110, 0b0100111100101111, 0b1100111100101111, 0b1100111100111111,
+                       0b1100111101111111, 0b1110111101111111, 0b1110111101111111, 0b1111111111111111};
 
-uint16_t pattern1[] = {0b0000000000000001, 0b0000000000000010, 0b0000000000000100, 0b0000000000001000, 0b0000000000010000, 0b0000000000100000,
-                       0b0000000001000000, 0b0000000010000000, 0b0000000100000000, 0b0000001000000000, 0b0000010000000000, 0b0000100000000000,
-                       0b0001000000000000, 0b0010000000000000, 0b0100000000000000, 0b1000000000000000};
-uint16_t pattern2[] = {0b0000000000000001, 0b0000000000000011, 0b0000000000000111, 0b0000000000001111, 0b0000000000011111, 0b0000000000111111,
-                       0b0000000001111111, 0b0000000011111111, 0b0000000111111111, 0b0000001111111111, 0b0000011111111111, 0b0000111111111111,
-                       0b0001111111111111, 0b0011111111111111, 0b0111111111111111, 0b1111111111111111};
-uint16_t pattern8[] = {0b1111111111111111};
+// Fill from time of opening
+uint16_t pattern3[] = {0b0100000000000000, 0b0100000000010000, 0b0100000000110000, 0b0110000000110010,
+                       0b0111000000110010, 0b0111000000111010, 0b0111000000111011, 0b0111011000111011,
+                       0b0111011011111011, 0b1111011011111011, 0b1111111011111011, 0b1111111111111011,
+                       0b1111111111111111};
+// Staying on
+uint16_t pattern4[] = {0b1111111111111111};
 
-#define TOTAL_PATTERNS 4
+#define TOTAL_PATTERNS 6
 void setupAnimatedPatterns() {
   
   animatedPatternCurrent = new AnimatedPattern(NULL, 0, 50, 10, 0, NULL); // Randomly generated
-  animatedPatternCurrent = new AnimatedPattern(pattern1, 16, 60, 10, 0, animatedPatternCurrent);
-  animatedPatternCurrent = new AnimatedPattern(pattern8, 1, 100, 0, 0, animatedPatternCurrent);
-  animatedPatternCurrent = new AnimatedPattern(pattern8, 1, 10, 100, 0, animatedPatternCurrent);
+  animatedPatternCurrent = new AnimatedPattern(pattern1, 16, 70, 8, 0, animatedPatternCurrent);
+  animatedPatternCurrent = new AnimatedPattern(pattern2, 16, 70, 8, 0, animatedPatternCurrent);
+  animatedPatternCurrent = new AnimatedPattern(pattern3, 13, 70, 8, 0, animatedPatternCurrent);
+  animatedPatternCurrent = new AnimatedPattern(pattern4, 1, 100, 0, 0, animatedPatternCurrent);
+  animatedPatternCurrent = new AnimatedPattern(pattern4, 1, 10, 100, 0, animatedPatternCurrent);
 
   animatedPatternHead = animatedPatternCurrent;
 }
