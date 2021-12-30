@@ -191,33 +191,34 @@ AnimatedPattern * animatedPatternCurrent;
 // Bart Yellow, Bart Blue, Bart Orange, Bart Green, Bart Red, Bart Grey, None, None,
 // Caltrain Zone 1, Caltrain Zone 2, Caltrain Zone 3, Caltrain Zone 4, Caltrain Zone 5, Caltrain Zone 6, None, None,
 // For example:
+// 0b0000000100000000
+// Caltrain Zone 1 will light up
 
-uint16_t pattern1[] = {0b0000000000000000, 0b0000000000000000, 0b0000000000000000, 0b0000000000000000, 0b0000000000000000, 0b0000000000000000,
-                       0b0000000000000000, 0b0000000000000000, 0b0000000000000000, 0b0000000000000000, 0b0000000000000000, 0b0000000000000000,};
-uint16_t pattern2[] = {0b0000000000000000, 0b0000000000000000, 0b0000000000000000, 0b0000000000000000, 0b0000000000000000, 0b0000000000000000,
-                       0b0000000000000000, 0b0000000000000000, 0b0000000000000000, 0b0000000000000000, 0b0000000000000000, 0b0000000000000000,};
-uint16_t pattern3[] = {0b0000000000000000, 0b0000000000000000, 0b0000000000000000, 0b0000000000000000, 0b0000000000000000, 0b0000000000000000,
-                       0b0000000000000000, 0b0000000000000000, 0b0000000000000000, 0b0000000000000000, 0b0000000000000000, 0b0000000000000000,};
-uint16_t pattern4[] = {0b0000000000000000, 0b0000000000000000, 0b0000000000000000, 0b0000000000000000, 0b0000000000000000, 0b0000000000000000,
-                       0b0000000000000000, 0b0000000000000000, 0b0000000000000000, 0b0000000000000000, 0b0000000000000000, 0b0000000000000000,};
+// First Service Year
+// Orange Yellow Green Red  Blue Grey Caltrain
+// 1972   1973   1974  1976 1997 2014 1985
+
+// Fill in order of service start
+uint16_t pattern1[] = {0b0000000000000100, 0b000000000000101, 0b000000000001101, 0b000000000011101, 0b001111110011101, 0b001111110011111, 0b001111110111111};
+// One at a time in order of service start
+uint16_t pattern2[] = {0b0000000000000100, 0b000000000000001, 0b000000000001000, 0b000000000010000, 0b001111110000000, 0b000000000000010, 0b000000000100000};
+// Bart and Caltrain alternate
 uint16_t pattern5[] = {0b0011111100000000, 0b0000000000111111};
-uint16_t pattern6[] = {0b0011111100000000};
-uint16_t pattern7[] = {0b0000000000111111};
+// Alternate
+uint16_t pattern6[] = {0b0010101000101010, 0b0001010100010101};
+// Alll on
 uint16_t pattern8[] = {0b0011111100111111};
 
-
+#define TOTAL_PATTERNS 2
 void setupAnimatedPatterns() {
   
   animatedPatternCurrent = new AnimatedPattern(NULL, 0, 40, 10, 0, NULL); // Randomly generated
-  animatedPatternCurrent = new AnimatedPattern(pattern1, 6, 40, 10, 0, animatedPatternCurrent);
-  animatedPatternCurrent = new AnimatedPattern(pattern2, 6, 40, 10, 0, animatedPatternCurrent);
-  animatedPatternCurrent = new AnimatedPattern(pattern3, 6, 40, 10, 0, animatedPatternCurrent);
-  animatedPatternCurrent = new AnimatedPattern(pattern4, 6, 40, 10, 0, animatedPatternCurrent);
-  animatedPatternCurrent = new AnimatedPattern(pattern5, 1, 100, 0, 0, animatedPatternCurrent);
-  animatedPatternCurrent = new AnimatedPattern(pattern5, 1, 10, 100, 10, animatedPatternCurrent);
-  animatedPatternCurrent = new AnimatedPattern(pattern6, 1, 100, 0, 0, animatedPatternCurrent);
-  animatedPatternCurrent = new AnimatedPattern(pattern7, 1, 100, 0, 0, animatedPatternCurrent);
-  animatedPatternCurrent = new AnimatedPattern(pattern8, 6, 40, 10, 0, animatedPatternCurrent);
+  animatedPatternCurrent = new AnimatedPattern(pattern1, 7, 60, 10, 0, animatedPatternCurrent);
+  animatedPatternCurrent = new AnimatedPattern(pattern2, 7, 60, 10, 0, animatedPatternCurrent);
+  animatedPatternCurrent = new AnimatedPattern(pattern5, 2, 60, 10, 0, animatedPatternCurrent);
+  animatedPatternCurrent = new AnimatedPattern(pattern6, 2, 60, 10, 0, animatedPatternCurrent);
+  animatedPatternCurrent = new AnimatedPattern(pattern8, 1, 100, 0, 0, animatedPatternCurrent);
+  animatedPatternCurrent = new AnimatedPattern(pattern8, 1, 10, 100, 0, animatedPatternCurrent);
 
 
   animatedPatternHead = animatedPatternCurrent;
