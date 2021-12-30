@@ -10,7 +10,7 @@
 // Uncomment this line to set the pins to arduino uno
 //#define ARDUINO_UNO_MODE
 
-#define DEBUG_MODE
+// #define DEBUG_MODE
 
 #ifdef ARDUINO_UNO_MODE
   // Arduino Uno Pins
@@ -188,13 +188,17 @@ AnimatedPattern * animatedPatternCurrent;
 // Patterns are defined as integers, but only the first 6 bits from the right are used.
 // 1 represents on an state, while 0 represents an off state.
 // The bits from right to left control the following lines respectively
-// NSL, EWL, NEL, CCL, DTL, TEL.
+// NSL, EWL, NEL, CCL, DTL, TEL, JRL, CRL
 // For example:
 // 0b00000011
 // NSL and EWL are on, while the rest are not.
+// Appearance in order of construction one at a time
 uint8_t pattern1[] = {0b00000001, 0b00000010, 0b00000100, 0b00001000, 0b00010000, 0b00100000, 0b01000000, 0b10000000};
+// Appearance in order of construction fill
 uint8_t pattern2[] = {0b00000001, 0b00000011, 0b00000111, 0b00001111, 0b00011111, 0b00111111, 0b01111111, 0b11111111};
+// Appearance in order of construction and disappearance
 uint8_t pattern3[] = {0b00000001, 0b00000011, 0b00000111, 0b00001111, 0b00011111, 0b00111111, 0b01111111, 0b11111111, 0b01111111, 0b00111111, 0b00011111, 0b00001111, 0b00000111, 0b00000011};
+// All on
 uint8_t pattern4[] = {0b11111111};
 
 #define TOTAL_PATTERNS 6
