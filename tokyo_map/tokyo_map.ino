@@ -10,7 +10,7 @@
 // Uncomment this line to set the pins to arduino uno
 //#define ARDUINO_UNO_MODE
 
-#define DEBUG_MODE
+// #define DEBUG_MODE
 
 #ifdef ARDUINO_UNO_MODE
   // Arduino Uno Pins
@@ -29,9 +29,9 @@
   #define SR_LATCH_PIN 7 // Pin connected to ST_CP of 74HC595 (LATCH)
   #define SR_CLOCK_PIN 8 // Pin connected to SH_CP of 74HC595 (CLOCK)
   #define SR_DATA_PIN 6 // Pin connected to DS of 74HC595 (DATA)
-  #define BUTTON1_PIN A0 // Analogue Pin
+  #define BUTTON3_PIN A0 // Analogue Pin
   #define BUTTON2_PIN A1 // Analogue Pin
-  #define BUTTON3_PIN A2 // Analogue Pin
+  #define BUTTON1_PIN A2 // Analogue Pin
   #define LIGHT_SENSOR_PIN A3 // Analogue Pin
   #define BRIGHTNESS_PIN 9 // Brightness Control (LIGHT)
   #define puts(x) Serial.print(x)
@@ -237,6 +237,7 @@ void nextPattern() {
     currentPatternId = 0;
   }
   EEPROM.update(3, currentPatternId);
+  puts("Current Pattern ID: "); putsln(currentPatternId);
   lightingState = STATE_HOLD_OFF;
   currentPatternState = 0;
   firstRun = true;
@@ -272,7 +273,7 @@ void buttonStatePreLoop() {
   if (analogRead(BUTTON1_PIN) > BUTTON_OFF_THRESHOLD) buttonStates[BTN_MODE] = true;
   if (analogRead(BUTTON2_PIN) > BUTTON_OFF_THRESHOLD) buttonStates[BTN_LIGHT] = true;
   if (analogRead(BUTTON3_PIN) > BUTTON_OFF_THRESHOLD) buttonStates[BTN_SPEED] = true;
-
+  
   for (int i = 0; i < 3; i++) {
     if (buttonStates[i]) {
       longPressMills[i] += millsDelta;
@@ -546,9 +547,12 @@ void setup() {
   setupAnimatedPatterns();
   int gotoPatternId = currentPatternId;
   currentPatternId = 0;
-  // for (int i = 0; i < gotoPatternId; i++) {
+  
+  // Need to + TOTAL_PATTERNS because if ID is 0,
+  // it will need to go one full cycle, this makes the code simpler
+  for (int i = 0; i < gotoPatternId + TOTAL_PATTERNS; i++) {
     nextPattern();
-  // }
+  }
   
   blinkDebugLight();
   putsln("Done setup");
