@@ -79,7 +79,7 @@
 
 // Since there are 2 resistors on the buttons,
 // we need to use the analog function of the button.
-#define BUTTON_OFF_THRESHOLD 900
+#define BUTTON_OFF_THRESHOLD 50
 
 uint8_t lightingState;
 uint16_t stateTicksTotal;
